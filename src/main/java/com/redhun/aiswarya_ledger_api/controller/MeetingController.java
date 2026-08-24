@@ -82,4 +82,18 @@ public class MeetingController {
         List<MeetingMemberDto> members = meetingService.getMeetingMembers(id);
         return ResponseEntity.ok(ApiResponse.ok(members));
     }
+
+    @GetMapping("/{id}/register-book")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MEMBER')")
+    public ResponseEntity<ApiResponse<com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto>> getMeetingRegisterBook(@PathVariable Long id) {
+        com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto register = meetingService.getCompletedMeetingRegister(id);
+        return ResponseEntity.ok(ApiResponse.ok(register));
+    }
+
+    @GetMapping("/last-completed-register")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MEMBER')")
+    public ResponseEntity<ApiResponse<com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto>> getLastCompletedMeetingRegister() {
+        com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto register = meetingService.getCompletedMeetingRegister(null);
+        return ResponseEntity.ok(ApiResponse.ok(register));
+    }
 }

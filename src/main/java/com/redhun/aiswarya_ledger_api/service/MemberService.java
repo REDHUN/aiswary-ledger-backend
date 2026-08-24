@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -63,15 +64,16 @@ public class MemberService {
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
                 .address(request.getAddress())
-                .joiningDate(request.getJoiningDate())
+                .joiningDate(request.getJoiningDate() != null ? request.getJoiningDate() : LocalDate.now())
                 .isActive(true)
                 .user(user)
                 .build();
 
         member = memberRepository.save(member);
 
-        // Initialize 6 account types for the new member
+        // Initialize 6 account types for the new member (excluding SPECIAL_LOAN without type)
         for (AccountType accountType : AccountType.values()) {
+            if (accountType == AccountType.SPECIAL_LOAN) continue;
             MemberAccount account = MemberAccount.builder()
                     .member(member)
                     .accountType(accountType)
@@ -93,6 +95,14 @@ public class MemberService {
 
     @Transactional(readOnly = true)
     public Page<MemberDto> getAllMembers(Pageable pageable) {
+        return getAllMembers(null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MemberDto> getAllMembers(String query, Pageable pageable) {
+        if (query != null && !query.trim().isEmpty()) {
+            return memberRepository.searchMembers(query.trim(), pageable).map(this::mapToMemberDto);
+        }
         return memberRepository.findAll(pageable).map(this::mapToMemberDto);
     }
 
@@ -116,12 +126,14 @@ public class MemberService {
             throw new ResourceNotFoundException("Member", "id", memberId);
         }
         return memberAccountRepository.findByMemberId(memberId).stream()
+                .filter(a -> a.getAccountType() != AccountType.SPECIAL_LOAN || a.getSpecialLoanType() != null)
                 .map(this::mapToAccountDto)
                 .collect(Collectors.toList());
     }
 
     public MemberDto mapToMemberDto(Member member) {
         List<MemberAccountDto> accounts = memberAccountRepository.findByMemberId(member.getId()).stream()
+                .filter(a -> a.getAccountType() != AccountType.SPECIAL_LOAN || a.getSpecialLoanType() != null)
                 .map(this::mapToAccountDto)
                 .collect(Collectors.toList());
 
@@ -143,6 +155,8 @@ public class MemberService {
                 .id(account.getId())
                 .memberId(account.getMember().getId())
                 .accountType(account.getAccountType())
+                .specialLoanTypeId(account.getSpecialLoanType() != null ? account.getSpecialLoanType().getId() : null)
+                .specialLoanTypeName(account.getSpecialLoanType() != null ? account.getSpecialLoanType().getName() : null)
                 .currentBalance(account.getCurrentBalance())
                 .version(account.getVersion())
                 .build();

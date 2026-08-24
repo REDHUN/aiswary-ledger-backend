@@ -3,6 +3,7 @@ package com.redhun.aiswarya_ledger_api.domain.entity;
 import com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 
@@ -43,6 +44,9 @@ public class Meeting {
 
     @Column(name = "completed_at")
     private ZonedDateTime completedAt;
+
+    @Column(name = "surplus_amount")
+    private BigDecimal surplusAmount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

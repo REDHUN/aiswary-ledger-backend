@@ -22,6 +22,7 @@ public class MeetingDto {
     private String notes;
     private ZonedDateTime openedAt;
     private ZonedDateTime completedAt;
+    private java.math.BigDecimal surplusAmount;
     private Long totalMembers;
     private Long processedMembers;
     private Long pendingMembers;

@@ -36,6 +36,7 @@ public class ContributionController {
                 request.getAmount(),
                 request.getMeetingId(),
                 request.getDescription(),
+                request.getTransactionDate(),
                 operator
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(tx, "Monthly contribution recorded successfully"));

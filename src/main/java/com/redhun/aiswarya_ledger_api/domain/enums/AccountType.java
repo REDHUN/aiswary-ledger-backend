@@ -6,5 +6,7 @@ public enum AccountType {
     FINE,
     FINANCIAL_AID,
     MONTHLY_CONTRIBUTION,
-    INTEREST
+    INTEREST,
+    SPECIAL_LOAN,
+    GROUP_EXPENSE
 }

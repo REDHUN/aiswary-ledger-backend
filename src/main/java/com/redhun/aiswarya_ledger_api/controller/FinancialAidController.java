@@ -36,6 +36,7 @@ public class FinancialAidController {
                 request.getAmount(),
                 request.getMeetingId(),
                 request.getDescription(),
+                request.getTransactionDate(),
                 operator
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(tx, "Financial aid recorded successfully"));

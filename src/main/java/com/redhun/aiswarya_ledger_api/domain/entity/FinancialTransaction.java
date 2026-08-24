@@ -45,6 +45,10 @@ public class FinancialTransaction {
     @JoinColumn(name = "meeting_id")
     private Meeting meeting;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "special_loan_type_id")
+    private SpecialLoanType specialLoanType;
+
     @Column(name = "reference_type", length = 50)
     private String referenceType;
 
@@ -61,11 +65,17 @@ public class FinancialTransaction {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @Column(name = "is_reversed", nullable = false)
+    @Builder.Default
+    private Boolean isReversed = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = ZonedDateTime.now();
+        if (createdAt == null) {
+            createdAt = ZonedDateTime.now();
+        }
     }
 }

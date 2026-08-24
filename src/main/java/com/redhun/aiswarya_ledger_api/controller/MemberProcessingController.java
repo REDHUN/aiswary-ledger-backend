@@ -44,4 +44,18 @@ public class MemberProcessingController {
         MemberProcessingFormDto result = memberProcessingService.processMember(meetingId, memberId, request, operator);
         return ResponseEntity.ok(ApiResponse.ok(result, "Member processed successfully"));
     }
+
+    @PutMapping("/process")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<MemberProcessingFormDto>> updateMemberProcess(
+            @PathVariable Long meetingId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody ProcessMemberRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        request.setIsUpdate(true);
+        User operator = userRepository.getReferenceById(userPrincipal.getId());
+        MemberProcessingFormDto result = memberProcessingService.processMember(meetingId, memberId, request, operator);
+        return ResponseEntity.ok(ApiResponse.ok(result, "Member processing updated successfully"));
+    }
 }

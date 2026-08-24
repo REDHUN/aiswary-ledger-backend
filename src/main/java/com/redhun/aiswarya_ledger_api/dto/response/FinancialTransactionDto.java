@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 
@@ -18,6 +19,8 @@ public class FinancialTransactionDto {
     private Long memberId;
     private String memberName;
     private AccountType accountType;
+    private Long specialLoanTypeId;
+    private String specialLoanTypeName;
     private TransactionType transactionType;
     private BigDecimal amount;
     private BigDecimal balanceBefore;
@@ -28,4 +31,6 @@ public class FinancialTransactionDto {
     private String description;
     private String createdByUsername;
     private ZonedDateTime createdAt;
+    @JsonProperty("isReversed")
+    private Boolean isReversed;
 }

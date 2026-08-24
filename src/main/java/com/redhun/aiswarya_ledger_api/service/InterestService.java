@@ -29,6 +29,7 @@ public class InterestService {
     private final MemberAccountRepository memberAccountRepository;
     private final MeetingRepository meetingRepository;
     private final LedgerService ledgerService;
+    private final com.redhun.aiswarya_ledger_api.repository.FinancialTransactionRepository financialTransactionRepository;
 
     public static final BigDecimal INTEREST_RATE = new BigDecimal("0.0100"); // 1%
 
@@ -37,7 +38,31 @@ public class InterestService {
      */
     @Transactional(readOnly = true)
     public boolean isInterestCalculationRequired(Long memberId, String interestPeriod) {
-        return !interestRepository.existsByMemberIdAndInterestPeriod(memberId, interestPeriod);
+        if (interestRepository.existsByMemberIdAndInterestPeriod(memberId, interestPeriod)) {
+            return false;
+        }
+
+        try {
+            String[] parts = interestPeriod.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]);
+
+            List<FinancialTransaction> txList = financialTransactionRepository
+                    .findByMemberIdAndAccountTypeOrderByCreatedAtDescIdDesc(memberId, AccountType.LOAN);
+
+            boolean hasInterestTx = txList.stream().anyMatch(t ->
+                    t.getTransactionType() == TransactionType.INTEREST_APPLIED
+                            && !Boolean.TRUE.equals(t.getIsReversed())
+                            && t.getCreatedAt().getYear() == year
+                            && t.getCreatedAt().getMonthValue() == month
+            );
+
+            if (hasInterestTx) {
+                return false;
+            }
+        } catch (Exception ignored) {}
+
+        return true;
     }
 
     /**

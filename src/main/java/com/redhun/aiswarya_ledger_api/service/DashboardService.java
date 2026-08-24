@@ -5,6 +5,7 @@ import com.redhun.aiswarya_ledger_api.domain.entity.MemberAccount;
 import com.redhun.aiswarya_ledger_api.domain.enums.AccountType;
 import com.redhun.aiswarya_ledger_api.domain.enums.InterestStatus;
 import com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus;
+import com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto;
 import com.redhun.aiswarya_ledger_api.dto.response.DashboardSummaryDto;
 import com.redhun.aiswarya_ledger_api.dto.response.MeetingDto;
 import com.redhun.aiswarya_ledger_api.repository.*;
@@ -28,6 +29,7 @@ public class DashboardService {
     private final FinancialTransactionRepository transactionRepository;
     private final InterestCalculationRepository interestRepository;
     private final MemberRepository memberRepository;
+    private final SystemSettingService systemSettingService;
 
     @Transactional(readOnly = true)
     public DashboardSummaryDto getDashboardSummary() {
@@ -71,8 +73,11 @@ public class DashboardService {
         long totalActiveMembers = memberRepository.findByIsActiveTrue().size();
         long pendingMembersCount = Math.max(0, totalActiveMembers - calculatedMembersCount);
 
+        CompletedMeetingRegisterDto lastRegister = meetingService.getCompletedMeetingRegister(null);
+
         return DashboardSummaryDto.builder()
                 .nextMeeting(nextMeetingDto)
+                .lastCompletedMeetingRegister(lastRegister)
                 .totalOutstandingLoans(totalLoans)
                 .totalDeposits(totalDeposits)
                 .totalOutstandingFines(totalFines)
@@ -80,6 +85,7 @@ public class DashboardService {
                 .totalMonthlyContributions(totalContributions)
                 .totalOutstandingInterest(totalInterest)
                 .currentMeetingCollections(currentCollections)
+                .surplusAmount(systemSettingService.getSurplusAmount())
                 .currentInterestPeriod(currentPeriod)
                 .interestCalculatedMembersCount(calculatedMembersCount)
                 .interestPendingMembersCount(pendingMembersCount)

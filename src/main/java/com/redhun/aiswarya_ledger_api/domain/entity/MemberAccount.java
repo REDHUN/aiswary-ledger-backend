@@ -7,12 +7,7 @@ import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 
 @Entity
-@Table(
-    name = "member_accounts",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "uk_member_account", columnNames = {"member_id", "account_type"})
-    }
-)
+@Table(name = "member_accounts")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,6 +27,11 @@ public class MemberAccount {
     @Column(name = "account_type", nullable = false, length = 30)
     private AccountType accountType;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "special_loan_type_id")
+    private SpecialLoanType specialLoanType;
+
+    @Builder.Default
     @Column(name = "current_balance", nullable = false, precision = 15, scale = 2)
     private BigDecimal currentBalance = BigDecimal.ZERO;
 

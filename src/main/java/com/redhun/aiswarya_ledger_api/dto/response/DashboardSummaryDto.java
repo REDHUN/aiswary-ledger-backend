@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 public class DashboardSummaryDto {
 
     private MeetingDto nextMeeting;
+    private CompletedMeetingRegisterDto lastCompletedMeetingRegister;
 
     // Financial Summaries
     private BigDecimal totalOutstandingLoans;
@@ -22,6 +23,7 @@ public class DashboardSummaryDto {
     private BigDecimal totalMonthlyContributions;
     private BigDecimal totalOutstandingInterest;
     private BigDecimal currentMeetingCollections;
+    private BigDecimal surplusAmount;
 
     // Interest Calculation Status Summary for current month
     private String currentInterestPeriod;

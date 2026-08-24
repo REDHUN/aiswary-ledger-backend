@@ -1,945 +1,720 @@
 {
-	"info": {
-		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-		"name": "Aiswarya Swayam Sahaya Sangham Ledger API",
-		"description": "Complete Postman collection for Aiswarya Swayam Sahaya Sangham Financial Ledger REST APIs, including Authentication, Member Management, Account Balances, Loan Issuance, Monthly 1% Interest Engine, Meeting Lifecycle, Member Processing, Financial Reversals, and Dashboard Analytics.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:8080",
-			"type": "string"
-		},
-		{
-			"key": "adminToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "memberToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "memberId",
-			"value": "1",
-			"type": "string"
-		},
-		{
-			"key": "meetingId",
-			"value": "1",
-			"type": "string"
-		},
-		{
-			"key": "transactionId",
-			"value": "1",
-			"type": "string"
-		}
-	],
-	"item": [
-		{
-			"name": "1. Authentication",
-			"item": [
-				{
-					"name": "Admin Login",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"var jsonData = pm.response.json();",
-									"if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
-									"    pm.collectionVariables.set('adminToken', jsonData.data.accessToken);",
-									"    console.log('Admin JWT Token set successfully');",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
-						},
-						"description": "Authenticate Admin user and set {{adminToken}} collection variable automatically."
-					},
-					"response": []
-				},
-				{
-					"name": "Member Login (John)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"var jsonData = pm.response.json();",
-									"if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
-									"    pm.collectionVariables.set('memberToken', jsonData.data.accessToken);",
-									"    pm.collectionVariables.set('memberId', jsonData.data.memberId);",
-									"    console.log('Member JWT Token and Member ID set successfully');",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"john\",\n    \"password\": \"admin123\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
-						},
-						"description": "Authenticate Member user and set {{memberToken}} collection variable automatically."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "2. Member Management",
-			"item": [
-				{
-					"name": "Create New Member",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"memberNumber\": \"M003\",\n    \"fullName\": \"Robert Smith\",\n    \"username\": \"robert\",\n    \"password\": \"robert123\",\n    \"phone\": \"9876543212\",\n    \"address\": \"Aiswarya Sangham House 3\",\n    \"joiningDate\": \"2026-08-22\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members"
-							]
-						},
-						"description": "Create a new member. Automatically initializes 6 account categories (LOAN, DEPOSIT, FINE, FINANCIAL_AID, MONTHLY_CONTRIBUTION, INTEREST) with balance = 0.00."
-					},
-					"response": []
-				},
-				{
-					"name": "Get All Members (Paginated)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members?page=0&size=10",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								}
-							]
-						},
-						"description": "Get all active members."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Details by ID",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}"
-							]
-						},
-						"description": "Fetch details of a single member."
-					},
-					"response": []
-				},
-				{
-					"name": "Update Member Info",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"fullName\": \"John Doe Updated\",\n    \"phone\": \"9876543299\",\n    \"address\": \"New Street Address\",\n    \"isActive\": true\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}"
-							]
-						},
-						"description": "Update member profile details."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Account Balances (6 Categories)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}/accounts",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}",
-								"accounts"
-							]
-						},
-						"description": "Fetch current balances for all 6 account categories."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Transaction Ledger History",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}/transactions?page=0&size=20",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}",
-								"transactions"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "20"
-								}
-							]
-						},
-						"description": "Fetch complete historical audit ledger of transactions for a member."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "3. Loans",
-			"item": [
-				{
-					"name": "Issue New / Additional Loan",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"amount\": 10000.00,\n    \"meetingId\": 1,\n    \"description\": \"Agricultural expansion loan\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}/loans",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}",
-								"loans"
-							]
-						},
-						"description": "Issue a new loan or aggregate an additional loan into the existing active loan balance."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "4. Monthly Interest Engine",
-			"item": [
-				{
-					"name": "Calculate 1% Monthly Interest for Member",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"interestPeriod\": \"2026-09\",\n    \"meetingId\": 1\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}/interest/calculate",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}",
-								"interest",
-								"calculate"
-							]
-						},
-						"description": "Calculates 1% interest on current loan balance. Accrues into separate INTEREST account (does not alter principal loan balance). Strictly enforced once per member per month."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Interest Calculation History",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/members/{{memberId}}/interest",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"members",
-								"{{memberId}}",
-								"interest"
-							]
-						},
-						"description": "Fetch monthly interest calculation history for a member."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "5. Meeting Lifecycle",
-			"item": [
-				{
-					"name": "Schedule New Meeting",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"meetingDate\": \"2026-09-13\",\n    \"notes\": \"Second Sunday meeting of September 2026\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings"
-							]
-						},
-						"description": "Schedule a new meeting."
-					},
-					"response": []
-				},
-				{
-					"name": "List All Meetings",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings"
-							]
-						},
-						"description": "Fetch all scheduled, open, and completed meetings."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Meeting Details by ID",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}"
-							]
-						},
-						"description": "Get meeting progress (total members, processed members, pending members)."
-					},
-					"response": []
-				},
-				{
-					"name": "Open Meeting & Snapshot Active Members",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/open",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"open"
-							]
-						},
-						"description": "Transitions meeting status to OPEN and snapshots all active members into meeting_members with PENDING status."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Meeting Assigned Members & Status",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/members",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"members"
-							]
-						},
-						"description": "Get list of assigned members and their processing status (PENDING / COMPLETED)."
-					},
-					"response": []
-				},
-				{
-					"name": "Reschedule Meeting",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"newMeetingDate\": \"2026-09-07\",\n    \"reason\": \"Postponed by 1 day due to local festival\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/reschedule",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"reschedule"
-							]
-						},
-						"description": "Reschedule meeting date."
-					},
-					"response": []
-				},
-				{
-					"name": "Complete Meeting & Auto-Schedule Next Sunday",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/complete",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"complete"
-							]
-						},
-						"description": "Completes the meeting. Rejects with HTTP 400 (MEMBERS_PENDING) if any member is pending. Automatically creates next Sunday scheduled meeting upon completion."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "6. Member Processing",
-			"item": [
-				{
-					"name": "Get Member Processing Form Data & Interest Flags",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/members/{{memberId}}/processing",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"members",
-								"{{memberId}}",
-								"processing"
-							]
-						},
-						"description": "Fetch member balances and processing flags (processingAllowed, interestCalculationRequired)."
-					},
-					"response": []
-				},
-				{
-					"name": "Process Member Payments / Confirm Zero-Payment",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Idempotency-Key",
-								"value": "tx-key-1001"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"loanRepayment\": 1000.00,\n    \"interestPayment\": 100.00,\n    \"depositAddition\": 500.00,\n    \"finePayment\": 0.00,\n    \"financialAidPayment\": 0.00,\n    \"monthlyContributionAddition\": 200.00,\n    \"notes\": \"Regular meeting collections\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/members/{{memberId}}/process",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"members",
-								"{{memberId}}",
-								"process"
-							]
-						},
-						"description": "Atomically records payments and sets member status = COMPLETED. If interest calculation is required and pending, returns HTTP 422 (INTEREST_CALCULATION_REQUIRED)."
-					},
-					"response": []
-				},
-				{
-					"name": "Process Zero-Payment Member",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"loanRepayment\": 0.00,\n    \"interestPayment\": 0.00,\n    \"depositAddition\": 0.00,\n    \"finePayment\": 0.00,\n    \"financialAidPayment\": 0.00,\n    \"monthlyContributionAddition\": 0.00,\n    \"notes\": \"Reviewed - No payments made\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/meetings/{{meetingId}}/members/{{memberId}}/process",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"meetings",
-								"{{meetingId}}",
-								"members",
-								"{{memberId}}",
-								"process"
-							]
-						},
-						"description": "Process member with zero payment. Updates processingStatus = COMPLETED without inserting financial transactions."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "7. Dashboard & Analytics",
-			"item": [
-				{
-					"name": "Get Dashboard Financial & Meeting Summary",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/dashboard/summary",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"dashboard",
-								"summary"
-							]
-						},
-						"description": "Fetch aggregated ledger metrics (total loans, deposits, fines, aid, contributions, interest) and meeting status summaries."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "8. Financial Corrections & Reversals",
-			"item": [
-				{
-					"name": "Reverse Financial Transaction",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{adminToken}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"reason\": \"Incorrect payment amount entered during meeting\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/transactions/{{transactionId}}/reverse",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"transactions",
-								"{{transactionId}}",
-								"reverse"
-							]
-						},
-						"description": "Reverses a financial transaction and restores account balance while preserving full audit history."
-					},
-					"response": []
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "8f9a2b1c-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+    "name": "Aiswarya Ledger API - Complete Postman Collection",
+    "description": "Complete Postman collection for Aiswarya Ledger API including Auth, Members, Loans, Deposits, Fines, Contributions, Financial Aid, Meetings, Processing, Dashboard, Transactions & CSV/Bulk Import.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://192.168.1.6:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login Admin (Get Bearer Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set('authToken', jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "    console.log('authToken & accessToken saved successfully!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Members",
+      "item": [
+        {
+          "name": "Get All Members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberNumber\": \"M007\",\n  \"fullName\": \"Kunjumon\",\n  \"username\": \"kunjumon7\",\n  \"password\": \"123456\",\n  \"phone\": \"9876543210\",\n  \"joiningDate\": \"2026-08-23\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Member Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/members/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Member Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Kunjumon Updated\",\n  \"phone\": \"9876543210\",\n  \"address\": \"Ernakulam, Kerala\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Member Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/members/1/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "accounts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Member Transactions (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/members/1/transactions?page=0&size=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Direct Category Actions (With Custom Date Support)",
+      "item": [
+        {
+          "name": "Issue Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 3000.00,\n  \"description\": \"Loan Issued\",\n  \"transactionDate\": \"2026-07-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/loans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "loans"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000.00,\n  \"description\": \"Savings Deposit\",\n  \"transactionDate\": \"2026-07-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/deposits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "deposits"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Fine",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100.00,\n  \"description\": \"Late Meeting Fee\",\n  \"transactionDate\": \"2026-07-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/fines",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "fines"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Monthly Contribution",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000.00,\n  \"description\": \"July Monthly Contribution\",\n  \"transactionDate\": \"2026-07-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/contributions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "contributions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Financial Aid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 2000.00,\n  \"description\": \"Medical Aid\",\n  \"transactionDate\": \"2026-07-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/financial-aid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "financial-aid"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Calculate 1% Interest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"interestPeriod\": \"2026-07\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1/interest/calculate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1",
+                "interest",
+                "calculate"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Meetings & Member Collections",
+      "item": [
+        {
+          "name": "Get All Meetings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meetings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meetings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedule Meeting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"meetingDate\": \"2026-08-30\",\n  \"description\": \"August Monthly Meeting\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/meetings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meetings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Member Collection Form",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meetings/1/members/1/processing",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meetings",
+                "1",
+                "members",
+                "1",
+                "processing"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Member Collections",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanRepayment\": 1000.00,\n  \"depositAddition\": 500.00,\n  \"finePayment\": 50.00,\n  \"financialAidPayment\": 0.00,\n  \"monthlyContributionAddition\": 500.00,\n  \"transactionDate\": \"2026-08-30\",\n  \"notes\": \"Meeting collection completed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/meetings/1/members/1/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meetings",
+                "1",
+                "members",
+                "1",
+                "process"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Transactions & Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard",
+                "summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Dashboard 20 Recent Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/recent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "recent"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Transactions (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=0&size=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reverse Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Mistaken entry correction\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/1/reverse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "1",
+                "reverse"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Bulk 1-Year Ledger Import",
+      "item": [
+        {
+          "name": "Import Bulk Transactions (JSON Payload)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"memberNumber\": \"M001\",\n      \"fullName\": \"John Doe\",\n      \"phone\": \"9876543210\",\n      \"joiningDate\": \"2025-01-01\",\n      \"accountType\": \"LOAN\",\n      \"transactionType\": \"LOAN_ISSUED\",\n      \"amount\": 25000.00,\n      \"transactionDate\": \"2025-01-15\",\n      \"description\": \"Opening 1-Year Loan\"\n    },\n    {\n      \"memberNumber\": \"M001\",\n      \"accountType\": \"LOAN\",\n      \"transactionType\": \"REPAYMENT\",\n      \"amount\": 2000.00,\n      \"transactionDate\": \"2025-02-15\",\n      \"description\": \"Feb Loan Repayment\"\n    },\n    {\n      \"memberNumber\": \"M002\",\n      \"fullName\": \"Anu Smith\",\n      \"accountType\": \"DEPOSIT\",\n      \"transactionType\": \"ADDITION\",\n      \"amount\": 5000.00,\n      \"transactionDate\": \"2025-01-15\",\n      \"description\": \"Opening Savings Deposit\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "import",
+                "bulk"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Import CSV File (Multipart Form-Data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "import",
+                "csv"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

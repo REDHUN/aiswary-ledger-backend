@@ -20,6 +20,7 @@ public class MemberProcessingFormDto {
     // Remaining or Current balances for each category
     private BigDecimal loanRemaining;
     private BigDecimal interestRemaining;
+    private BigDecimal calculatedInterestAmount;
     private BigDecimal depositCurrent;
     private BigDecimal fineRemaining;
     private BigDecimal financialAidRemaining;
@@ -31,4 +32,25 @@ public class MemberProcessingFormDto {
     private Boolean interestCalculated;
     private Boolean processingAllowed;
     private String activeInterestPeriod;
+
+    // Last processed payment values (if completed)
+    private BigDecimal lastLoanRepayment;
+    private BigDecimal lastDepositAddition;
+    private BigDecimal lastFinePayment;
+    private BigDecimal lastFinancialAidPayment;
+    private BigDecimal lastMonthlyContributionAddition;
+    private String lastNotes;
+
+    private java.util.List<MemberSpecialLoanBalanceDto> specialLoans;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemberSpecialLoanBalanceDto {
+        private Long specialLoanTypeId;
+        private String specialLoanTypeName;
+        private BigDecimal currentBalance;
+        private BigDecimal lastRepaymentAmount;
+    }
 }

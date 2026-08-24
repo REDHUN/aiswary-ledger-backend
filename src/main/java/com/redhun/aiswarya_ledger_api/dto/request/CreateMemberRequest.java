@@ -1,7 +1,6 @@
 package com.redhun.aiswarya_ledger_api.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
 
@@ -20,6 +19,5 @@ public class CreateMemberRequest {
     private String phone;
     private String address;
 
-    @NotNull(message = "Joining date is required")
     private LocalDate joiningDate;
 }

@@ -14,6 +14,8 @@ public class IssueGroupLoanRequest {
 
     private Long groupId;
 
+    private Long meetingId;
+
     @NotEmpty(message = "At least one member must be selected for the group loan")
     private List<Long> memberIds;
 

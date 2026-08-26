@@ -46,12 +46,16 @@ public class MemberService {
         }
 
         User user = null;
-        if (request.getUsername() != null && request.getPassword() != null) {
-            if (userRepository.existsByUsername(request.getUsername())) {
-                throw new DuplicateResourceException("User", "username", request.getUsername());
+        String reqUsername = request.getUsername();
+        if ((reqUsername == null || reqUsername.trim().isEmpty()) && request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            reqUsername = request.getPhone().trim();
+        }
+        if (reqUsername != null && !reqUsername.trim().isEmpty() && request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            if (userRepository.existsByUsername(reqUsername.trim())) {
+                throw new DuplicateResourceException("User", "username", reqUsername.trim());
             }
             user = User.builder()
-                    .username(request.getUsername())
+                    .username(reqUsername.trim())
                     .passwordHash(passwordEncoder.encode(request.getPassword()))
                     .role(UserRole.MEMBER)
                     .isActive(true)

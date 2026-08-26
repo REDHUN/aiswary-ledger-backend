@@ -1,5 +1,10 @@
 package com.redhun.aiswarya_ledger_api.service;
 
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import com.redhun.aiswarya_ledger_api.dto.response.LoanIssuedRegisterItemDto;
+
 import com.redhun.aiswarya_ledger_api.domain.entity.*;
 import com.redhun.aiswarya_ledger_api.domain.enums.AccountType;
 import com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus;
@@ -8,6 +13,8 @@ import com.redhun.aiswarya_ledger_api.domain.enums.TransactionType;
 import com.redhun.aiswarya_ledger_api.dto.request.RescheduleMeetingRequest;
 import com.redhun.aiswarya_ledger_api.dto.request.ScheduleMeetingRequest;
 import com.redhun.aiswarya_ledger_api.dto.response.CompletedMeetingRegisterDto;
+import com.redhun.aiswarya_ledger_api.dto.response.GroupExpenseDto;
+import com.redhun.aiswarya_ledger_api.dto.response.GroupProfitDto;
 import com.redhun.aiswarya_ledger_api.dto.response.MeetingDto;
 import com.redhun.aiswarya_ledger_api.dto.response.MeetingMemberDto;
 import com.redhun.aiswarya_ledger_api.dto.response.SpecialLoanRegisterItemDto;
@@ -16,6 +23,7 @@ import com.redhun.aiswarya_ledger_api.exception.MembersPendingException;
 import com.redhun.aiswarya_ledger_api.exception.ResourceNotFoundException;
 import com.redhun.aiswarya_ledger_api.repository.FinancialTransactionRepository;
 import com.redhun.aiswarya_ledger_api.repository.GroupExpenseRepository;
+import com.redhun.aiswarya_ledger_api.repository.GroupProfitRepository;
 import com.redhun.aiswarya_ledger_api.repository.MeetingMemberRepository;
 import com.redhun.aiswarya_ledger_api.repository.MeetingRepository;
 import com.redhun.aiswarya_ledger_api.repository.MemberRepository;
@@ -42,6 +50,8 @@ public class MeetingService {
     private final SystemSettingService systemSettingService;
     private final FinancialTransactionRepository financialTransactionRepository;
     private final GroupExpenseRepository groupExpenseRepository;
+    private final GroupProfitRepository groupProfitRepository;
+    private final GroupProfitService groupProfitService;
 
     @Transactional
     public MeetingDto scheduleMeeting(ScheduleMeetingRequest request, User operator) {
@@ -161,7 +171,13 @@ public class MeetingService {
                 meetingId, TransactionType.REVERSAL, AccountType.FINANCIAL_AID);
         if (aid == null) aid = BigDecimal.ZERO;
 
-        BigDecimal netChange = collections.subtract(aid);
+        BigDecimal groupExpenses = groupExpenseRepository.sumMeetingExpenses(meetingId);
+        if (groupExpenses == null) groupExpenses = BigDecimal.ZERO;
+
+        BigDecimal loansIssued = financialTransactionRepository.sumMeetingLoansIssued(meetingId);
+        if (loansIssued == null) loansIssued = BigDecimal.ZERO;
+
+        BigDecimal netChange = collections.subtract(aid).subtract(groupExpenses).subtract(loansIssued);
 
         BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
         BigDecimal newSurplus = currentSurplus.add(netChange);
@@ -245,8 +261,8 @@ public class MeetingService {
             meeting = meetingRepository.findById(meetingId)
                     .orElse(null);
         } else {
-            meeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(MeetingStatus.COMPLETED)
-                    .orElse(null);
+            meeting = meetingRepository.findFirstByStatusOrderByMeetingDateAsc(MeetingStatus.OPEN)
+                    .orElseGet(() -> meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(MeetingStatus.COMPLETED).orElse(null));
         }
 
         if (meeting == null) {
@@ -280,11 +296,51 @@ public class MeetingService {
         BigDecimal aidDisbursed = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINANCIAL_AID, TransactionType.ADDITION);
         if (aidDisbursed == null) aidDisbursed = BigDecimal.ZERO;
 
+        BigDecimal groupProfits = groupProfitRepository.sumMeetingProfits(mId);
+        if (groupProfits == null) groupProfits = BigDecimal.ZERO;
+
+        List<GroupProfit> profitList = groupProfitRepository.findByMeetingId(mId);
+        List<GroupProfitDto> groupProfitsBreakdown = profitList.stream().map(groupProfitService::mapProfitToDto).collect(Collectors.toList());
+
         BigDecimal groupExpenses = groupExpenseRepository.sumMeetingExpenses(mId);
         if (groupExpenses == null) groupExpenses = BigDecimal.ZERO;
 
-        BigDecimal totalCollections = deposits.add(loanRepayments).add(fines).add(contributions).add(specialLoanRepayments);
-        BigDecimal netCollections = totalCollections.subtract(aidDisbursed).subtract(groupExpenses);
+        List<GroupExpense> expList = groupExpenseRepository.findByMeetingId(mId);
+        List<GroupExpenseDto> groupExpensesBreakdown = expList.stream().map(e -> GroupExpenseDto.builder()
+                .id(e.getId())
+                .expenseTypeId(e.getExpenseType() != null ? e.getExpenseType().getId() : null)
+                .expenseTypeName(e.getExpenseType() != null ? e.getExpenseType().getName() : "Expense")
+                .amount(e.getAmount())
+                .expenseDate(e.getExpenseDate())
+                .description(e.getDescription())
+                .meetingId(e.getMeeting() != null ? e.getMeeting().getId() : null)
+                .createdAt(e.getCreatedAt())
+                .build()).collect(Collectors.toList());
+
+
+        BigDecimal loansIssued = financialTransactionRepository.sumMeetingLoansIssued(mId);
+        if (loansIssued == null) loansIssued = BigDecimal.ZERO;
+
+        List<FinancialTransaction> loanTxList = financialTransactionRepository.findByMeetingIdAndTransactionTypeAndIsReversedFalse(mId, TransactionType.LOAN_ISSUED);
+        Map<String, BigDecimal> loanBreakdownMap = new LinkedHashMap<>();
+        for (FinancialTransaction tx : loanTxList) {
+            String label = tx.getDescription() != null && !tx.getDescription().trim().isEmpty()
+                    ? tx.getDescription()
+                    : (tx.getSpecialLoanType() != null ? "സ്പെഷ്യൽ വായ്പ (" + tx.getSpecialLoanType().getName() + ")" : "സാധാരണ വായ്പ");
+            loanBreakdownMap.merge(label, tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        List<LoanIssuedRegisterItemDto> loansIssuedBreakdown = new ArrayList<>();
+        for (Map.Entry<String, BigDecimal> entry : loanBreakdownMap.entrySet()) {
+            loansIssuedBreakdown.add(LoanIssuedRegisterItemDto.builder()
+                    .categoryName(entry.getKey())
+                    .amount(entry.getValue())
+                    .build());
+        }
+
+
+        BigDecimal totalCollections = deposits.add(loanRepayments).add(fines).add(contributions).add(specialLoanRepayments).add(groupProfits);
+        BigDecimal netCollections = totalCollections.subtract(aidDisbursed).subtract(groupExpenses).subtract(loansIssued);
 
         BigDecimal surplus = meeting.getSurplusAmount();
         if (surplus == null) {
@@ -302,8 +358,13 @@ public class MeetingService {
                 .totalMonthlyContributionsCollected(contributions)
                 .totalSpecialLoanRepaymentsCollected(specialLoanRepayments)
                 .specialLoanBreakdown(slBreakdown)
+                .totalLoansIssued(loansIssued)
+                .loansIssuedBreakdown(loansIssuedBreakdown)
                 .totalFinancialAidDisbursed(aidDisbursed)
                 .totalGroupExpenses(groupExpenses)
+                .groupExpensesBreakdown(groupExpensesBreakdown)
+                .totalGroupProfit(groupProfits)
+                .groupProfitsBreakdown(groupProfitsBreakdown)
                 .totalNetMeetingCollections(netCollections)
                 .surplusAmount(surplus)
                 .build();

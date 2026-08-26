@@ -8,5 +8,7 @@ public enum AccountType {
     MONTHLY_CONTRIBUTION,
     INTEREST,
     SPECIAL_LOAN,
-    GROUP_EXPENSE
+    GROUP_EXPENSE,
+    GROUP_PROFIT,
+    SURPLUS_FUND
 }

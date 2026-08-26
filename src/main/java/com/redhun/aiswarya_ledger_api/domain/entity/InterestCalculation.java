@@ -39,6 +39,7 @@ public class InterestCalculation {
     private BigDecimal loanBalanceUsed;
 
     @Column(name = "interest_rate", nullable = false, precision = 5, scale = 4)
+    @Builder.Default
     private BigDecimal interestRate = new BigDecimal("0.0100");
 
     @Column(name = "interest_amount", nullable = false, precision = 15, scale = 2)
@@ -46,6 +47,7 @@ public class InterestCalculation {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Builder.Default
     private InterestStatus status = InterestStatus.CALCULATED;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

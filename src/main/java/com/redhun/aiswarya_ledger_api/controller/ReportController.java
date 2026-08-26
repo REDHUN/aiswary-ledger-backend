@@ -3,6 +3,7 @@ package com.redhun.aiswarya_ledger_api.controller;
 import com.redhun.aiswarya_ledger_api.dto.response.ApiResponse;
 import com.redhun.aiswarya_ledger_api.dto.response.FinancialReportDto;
 import com.redhun.aiswarya_ledger_api.dto.response.MemberBalanceReportDto;
+import com.redhun.aiswarya_ledger_api.dto.response.CategoryReportDto;
 import com.redhun.aiswarya_ledger_api.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -45,14 +46,14 @@ public class ReportController {
     }
 
     @GetMapping("/meetings")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MEMBER')")
     public ResponseEntity<ApiResponse<List<com.redhun.aiswarya_ledger_api.dto.response.MeetingReportDto>>> getAllMeetingReports() {
         List<com.redhun.aiswarya_ledger_api.dto.response.MeetingReportDto> reports = reportService.getAllMeetingReports();
         return ResponseEntity.ok(ApiResponse.ok(reports));
     }
 
     @GetMapping("/meetings/{meetingId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MEMBER')")
     public ResponseEntity<ApiResponse<com.redhun.aiswarya_ledger_api.dto.response.MeetingReportDto>> getMeetingReport(@PathVariable Long meetingId) {
         com.redhun.aiswarya_ledger_api.dto.response.MeetingReportDto report = reportService.getMeetingReport(meetingId);
         return ResponseEntity.ok(ApiResponse.ok(report));
@@ -65,5 +66,11 @@ public class ReportController {
     ) {
         com.redhun.aiswarya_ledger_api.dto.response.MonthlyLedgerReportDto report = reportService.getMonthlyLedgerReport(yearMonth);
         return ResponseEntity.ok(ApiResponse.ok(report));
+    }
+
+    @GetMapping("/category")
+    public ResponseEntity<ApiResponse<CategoryReportDto>> getCategoryReport() {
+        CategoryReportDto report = reportService.getCategoryReport();
+        return ResponseEntity.ok(ApiResponse.ok(report, "Category report fetched successfully"));
     }
 }

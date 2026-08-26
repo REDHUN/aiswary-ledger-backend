@@ -47,4 +47,7 @@ public class BulkImportItemDto {
     private LocalDate transactionDate;
 
     private String description;
+    private Integer meetingNumber;
+    private String interestPeriod;
+    private String categoryType;
 }

@@ -53,8 +53,6 @@ public class InterestService {
             boolean hasInterestTx = txList.stream().anyMatch(t ->
                     t.getTransactionType() == TransactionType.INTEREST_APPLIED
                             && !Boolean.TRUE.equals(t.getIsReversed())
-                            && t.getCreatedAt().getYear() == year
-                            && t.getCreatedAt().getMonthValue() == month
             );
 
             if (hasInterestTx) {

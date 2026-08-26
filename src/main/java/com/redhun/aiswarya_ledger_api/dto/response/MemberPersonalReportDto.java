@@ -21,6 +21,7 @@ public class MemberPersonalReportDto {
 
     private BigDecimal totalDeposits;
     private BigDecimal totalLoanRepaid;
+    private BigDecimal totalSpecialLoanRepaid;
     private BigDecimal currentLoanBalance;
     private BigDecimal currentDepositBalance;
     private BigDecimal totalMonthlyContributions;
@@ -39,6 +40,8 @@ public class MemberPersonalReportDto {
         private Integer meetingNumber;
         private String meetingDate;
         private BigDecimal loanRepayment;
+        private BigDecimal specialLoanRepayment;
+        private String specialLoanTypeName;
         private BigDecimal depositAddition;
         private BigDecimal finePayment;
         private BigDecimal contributionAddition;

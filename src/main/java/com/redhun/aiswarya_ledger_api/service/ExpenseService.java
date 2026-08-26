@@ -3,6 +3,8 @@ package com.redhun.aiswarya_ledger_api.service;
 import com.redhun.aiswarya_ledger_api.domain.entity.*;
 import com.redhun.aiswarya_ledger_api.domain.enums.AccountType;
 import com.redhun.aiswarya_ledger_api.domain.enums.TransactionType;
+import com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus;
+import java.util.Optional;
 import com.redhun.aiswarya_ledger_api.dto.request.CreateExpenseTypeRequest;
 import com.redhun.aiswarya_ledger_api.dto.request.CreateGroupExpenseRequest;
 import com.redhun.aiswarya_ledger_api.dto.response.ExpenseTypeDto;
@@ -80,6 +82,16 @@ public class ExpenseService {
         Meeting meeting = null;
         if (request.getMeetingId() != null) {
             meeting = meetingRepository.findById(request.getMeetingId()).orElse(null);
+        } else {
+            Optional<Meeting> openMeeting = meetingRepository.findFirstByStatusOrderByMeetingDateAsc(MeetingStatus.OPEN);
+            if (openMeeting.isPresent()) {
+                meeting = openMeeting.get();
+            } else {
+                Optional<Meeting> completedMeeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(MeetingStatus.COMPLETED);
+                if (completedMeeting.isPresent()) {
+                    meeting = completedMeeting.get();
+                }
+            }
         }
 
         LocalDate expDate = request.getExpenseDate() != null ? request.getExpenseDate() : LocalDate.now();
@@ -102,6 +114,16 @@ public class ExpenseService {
             newSurplus = BigDecimal.ZERO;
         }
         systemSettingService.updateSurplusAmount(newSurplus);
+
+        // Deduct from meeting surplus snapshot if set
+        if (meeting != null && meeting.getSurplusAmount() != null) {
+            BigDecimal mSurplus = meeting.getSurplusAmount().subtract(request.getAmount());
+            if (mSurplus.compareTo(BigDecimal.ZERO) < 0) {
+                mSurplus = BigDecimal.ZERO;
+            }
+            meeting.setSurplusAmount(mSurplus);
+            meetingRepository.save(meeting);
+        }
 
         // Log Financial Transaction directly on Surplus Reserve
         Member operatorMember = memberRepository.findByUserId(operator != null ? operator.getId() : null)

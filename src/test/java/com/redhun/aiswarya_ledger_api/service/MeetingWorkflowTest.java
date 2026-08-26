@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -336,8 +337,41 @@ public class MeetingWorkflowTest {
 
         com.redhun.aiswarya_ledger_api.domain.entity.Member member = memberRepository.findByMemberNumber("IMPINT01").orElseThrow();
 
-        // Verify interest calculation is NOT required for 2026-08 because interest was already imported
-        assertFalse(interestService.isInterestCalculationRequired(member.getId(), "2026-08"));
+                                                assertFalse(interestService.isInterestCalculationRequired(member.getId(), "2026-08"));
+    }
+
+
+    @Test
+    public void testImport5Members10MeetingsCsv() throws Exception {
+        java.io.File fileOnDisk = new java.io.File("aiswarya_ledger_5members_10meetings.csv");
+        assertTrue(fileOnDisk.exists(), "CSV file should exist in project root");
+
+        byte[] content = java.nio.file.Files.readAllBytes(fileOnDisk.toPath());
+        org.springframework.mock.web.MockMultipartFile mockFile = new org.springframework.mock.web.MockMultipartFile(
+                "file",
+                "aiswarya_ledger_5members_10meetings.csv",
+                "text/csv",
+                content
+        );
+
+        var response = importService.importCsvFile(mockFile, adminUser);
+        assertNotNull(response);
+        System.out.println("Import Result: Total=" + response.getTotalProcessed() + ", Success=" + response.getSuccessCount() + ", Errors=" + response.getErrorCount() + " -> " + response.getErrors());
+        assertTrue(response.getSuccessCount() > 0, "Should successfully import rows: successCount=" + response.getSuccessCount());
+        assertEquals(0, response.getErrorCount(), "Should have 0 errors during import: " + response.getErrors());
+
+        // Verify 10 meetings created
+        com.redhun.aiswarya_ledger_api.domain.entity.Meeting m10 = meetingRepository.findByMeetingNumber(10).orElseThrow();
+        assertNotNull(m10);
+
+        // Verify member count
+        var allMembers = memberRepository.findAll();
+        assertTrue(allMembers.size() >= 5, "Should have created at least 5 members");
+
+        // Verify meeting report for meeting #10
+        var m10Report = reportService.getMeetingReport(m10.getId());
+        assertNotNull(m10Report);
+                assertTrue(m10Report.getMeetingNumber() == 10);
     }
 
     @Test

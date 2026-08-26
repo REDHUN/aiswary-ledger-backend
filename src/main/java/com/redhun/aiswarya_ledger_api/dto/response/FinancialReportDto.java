@@ -17,11 +17,14 @@ public class FinancialReportDto {
     private long activeMembers;
 
     private BigDecimal totalOutstandingLoans;
+    private BigDecimal totalSpecialLoanBalance;
     private BigDecimal totalDeposits;
     private BigDecimal totalOutstandingFines;
     private BigDecimal totalOutstandingFinancialAid;
     private BigDecimal totalMonthlyContributions;
     private BigDecimal totalOutstandingInterest;
+    private BigDecimal totalGroupExpenses;
+    private BigDecimal surplusAmount;
 
     private BigDecimal periodCollections;
     private BigDecimal periodDisbursals;

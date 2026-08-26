@@ -25,8 +25,13 @@ public class CompletedMeetingRegisterDto {
     private BigDecimal totalMonthlyContributionsCollected;
     private BigDecimal totalSpecialLoanRepaymentsCollected;
     private List<SpecialLoanRegisterItemDto> specialLoanBreakdown;
+    private BigDecimal totalLoansIssued;
+    private List<LoanIssuedRegisterItemDto> loansIssuedBreakdown;
     private BigDecimal totalFinancialAidDisbursed;
     private BigDecimal totalGroupExpenses;
+    private List<GroupExpenseDto> groupExpensesBreakdown;
+    private BigDecimal totalGroupProfit;
+    private List<GroupProfitDto> groupProfitsBreakdown;
     private BigDecimal totalNetMeetingCollections;
     private BigDecimal surplusAmount;
 }

@@ -55,7 +55,10 @@ public class SystemSettingService {
         BigDecimal aid = financialTransactionRepository.sumAllFinancialAidIssued();
         if (aid == null) aid = BigDecimal.ZERO;
 
-        BigDecimal net = collections.subtract(aid);
+        BigDecimal loansIssued = financialTransactionRepository.sumAllLoansIssued();
+        if (loansIssued == null) loansIssued = BigDecimal.ZERO;
+
+        BigDecimal net = collections.subtract(aid).subtract(loansIssued);
         return net.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : net;
     }
 
@@ -70,14 +73,10 @@ public class SystemSettingService {
 
         updateSurplusAmount(newSurplus);
 
-        Member member = memberRepository.findByUserId(operator.getId())
-                .orElseGet(() -> memberRepository.findByIsActiveTrue().stream().findFirst()
-                        .orElseThrow(() -> new BusinessException("MEMBER_NOT_FOUND", "No active member found for surplus transaction logging")));
-
         FinancialTransaction tx = FinancialTransaction.builder()
-                .member(member)
-                .accountType(AccountType.DEPOSIT)
-                .transactionType(TransactionType.ADDITION)
+                .member(null)
+                .accountType(AccountType.SURPLUS_FUND)
+                .transactionType(TransactionType.SURPLUS_ADDITION)
                 .amount(amountToAdd)
                 .balanceBefore(currentSurplus)
                 .balanceAfter(newSurplus)

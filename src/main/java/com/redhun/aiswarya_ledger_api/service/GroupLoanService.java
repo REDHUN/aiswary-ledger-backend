@@ -3,6 +3,9 @@ package com.redhun.aiswarya_ledger_api.service;
 import com.redhun.aiswarya_ledger_api.domain.entity.*;
 import com.redhun.aiswarya_ledger_api.domain.enums.AccountType;
 import com.redhun.aiswarya_ledger_api.domain.enums.TransactionType;
+import com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus;
+import com.redhun.aiswarya_ledger_api.domain.entity.Meeting;
+import java.util.Optional;
 import com.redhun.aiswarya_ledger_api.dto.request.IssueGroupLoanRequest;
 import com.redhun.aiswarya_ledger_api.dto.response.GroupLoanSummaryDto;
 import com.redhun.aiswarya_ledger_api.exception.BusinessException;
@@ -11,6 +14,7 @@ import com.redhun.aiswarya_ledger_api.repository.GroupLoanRepository;
 import com.redhun.aiswarya_ledger_api.repository.MemberGroupRepository;
 import com.redhun.aiswarya_ledger_api.repository.MemberRepository;
 import com.redhun.aiswarya_ledger_api.repository.SpecialLoanTypeRepository;
+import com.redhun.aiswarya_ledger_api.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +34,9 @@ public class GroupLoanService {
     private final MemberRepository memberRepository;
     private final SpecialLoanTypeRepository specialLoanTypeRepository;
     private final LedgerService ledgerService;
+    private final SystemSettingService systemSettingService;
     private final com.redhun.aiswarya_ledger_api.repository.MemberAccountRepository memberAccountRepository;
+    private final MeetingRepository meetingRepository;
 
     @Transactional
     public GroupLoanSummaryDto issueGroupLoan(IssueGroupLoanRequest request, User operator) {
@@ -56,6 +62,22 @@ public class GroupLoanService {
                     .orElseThrow(() -> new ResourceNotFoundException("SpecialLoanType", "id", request.getSpecialLoanTypeId()));
         }
 
+        Meeting meeting = null;
+        if (request.getMeetingId() != null) {
+            meeting = meetingRepository.findById(request.getMeetingId()).orElse(null);
+        } else {
+            Optional<Meeting> openMeeting = meetingRepository.findFirstByStatusOrderByMeetingDateAsc(MeetingStatus.OPEN);
+            if (openMeeting.isPresent()) {
+                meeting = openMeeting.get();
+            } else {
+                Optional<Meeting> completedMeeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(MeetingStatus.COMPLETED);
+                if (completedMeeting.isPresent()) {
+                    meeting = completedMeeting.get();
+                }
+            }
+        }
+        Long targetMeetingId = meeting != null ? meeting.getId() : null;
+
         LocalDate txDate = request.getTransactionDate() != null ? request.getTransactionDate() : LocalDate.now();
         String groupNameStr = group != null ? group.getName() : "Group Loan (" + memberCount + " members)";
         String description = String.format("Group Loan [%s]: Total ₹%s split ₹%s each (%d members)%s",
@@ -73,7 +95,7 @@ public class GroupLoanService {
                     accountType,
                     TransactionType.LOAN_ISSUED,
                     perMemberAmount,
-                    null,
+                    request.getMeetingId(),
                     "GROUP_LOAN_ISSUE",
                     null,
                     description,
@@ -98,6 +120,19 @@ public class GroupLoanService {
                 .build();
 
         groupLoan = groupLoanRepository.save(groupLoan);
+
+        // Deduct total group loan amount directly from Surplus Fund (michha thukka)
+        BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
+        BigDecimal newSurplus = currentSurplus.subtract(totalAmount);
+        if (newSurplus.compareTo(BigDecimal.ZERO) < 0) {
+            newSurplus = BigDecimal.ZERO;
+        }
+        systemSettingService.updateSurplusAmount(newSurplus);
+        if (meeting != null) {
+            BigDecimal mSurplus = meeting.getSurplusAmount() != null ? meeting.getSurplusAmount() : currentSurplus;
+            meeting.setSurplusAmount(mSurplus.subtract(totalAmount).compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : mSurplus.subtract(totalAmount));
+            meetingRepository.save(meeting);
+        }
 
         return GroupLoanSummaryDto.builder()
                 .id(groupLoan.getId())

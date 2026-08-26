@@ -7,5 +7,6 @@ public enum TransactionType {
     REPAYMENT,
     INTEREST_APPLIED,
     ADJUSTMENT,
-    REVERSAL
+    REVERSAL,
+    SURPLUS_ADDITION
 }

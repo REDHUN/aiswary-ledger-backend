@@ -26,6 +26,7 @@ public class Meeting {
     @Column(name = "meeting_date", nullable = false)
     private LocalDate meetingDate;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private MeetingStatus status = MeetingStatus.SCHEDULED;
@@ -33,6 +34,7 @@ public class Meeting {
     @Column(name = "interest_period", nullable = false, length = 7)
     private String interestPeriod; // 'YYYY-MM'
 
+    @Builder.Default
     @Column(name = "is_first_meeting_of_month", nullable = false)
     private Boolean isFirstMeetingOfMonth = false;
 

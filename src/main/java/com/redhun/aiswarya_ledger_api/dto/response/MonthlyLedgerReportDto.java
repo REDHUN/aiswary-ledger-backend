@@ -21,6 +21,9 @@ public class MonthlyLedgerReportDto {
     private List<MemberLedgerRowDto> memberRows;
     private Map<String, BigDecimal> meetingTotals;
     private BigDecimal grandTotalCollected;
+    private BigDecimal totalSpecialLoanRepayments;
+    private BigDecimal totalGroupExpenses;
+    private BigDecimal surplusAmount;
 
     @Data
     @Builder
@@ -35,6 +38,7 @@ public class MonthlyLedgerReportDto {
         private BigDecimal monthlyContributionSum;
         private BigDecimal depositSum;
         private BigDecimal loanRepaymentSum;
+        private BigDecimal specialLoanRepaymentSum;
         private BigDecimal fineSum;
         private BigDecimal currentLoanBalance;
         private BigDecimal currentDepositBalance;

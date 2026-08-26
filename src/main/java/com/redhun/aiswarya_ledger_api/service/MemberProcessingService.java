@@ -91,11 +91,11 @@ public class MemberProcessingService {
                 }
                 if (tx.getAccountType() == AccountType.LOAN && tx.getTransactionType() == TransactionType.REPAYMENT) {
                     lastLoanRepayment = tx.getAmount();
-                } else if (tx.getAccountType() == AccountType.DEPOSIT && tx.getTransactionType() == TransactionType.ADDITION) {
+                } else if (tx.getAccountType() == AccountType.DEPOSIT && (tx.getTransactionType() == TransactionType.ADDITION || tx.getTransactionType() == TransactionType.INITIAL_BALANCE)) {
                     lastDepositAddition = tx.getAmount();
                 } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.REPAYMENT) {
                     lastFinePayment = tx.getAmount();
-                } else if (tx.getAccountType() == AccountType.FINANCIAL_AID && tx.getTransactionType() == TransactionType.REPAYMENT) {
+                } else if (tx.getAccountType() == AccountType.FINANCIAL_AID && tx.getTransactionType() == TransactionType.ADDITION) {
                     lastFinancialAidPayment = tx.getAmount();
                 } else if (tx.getAccountType() == AccountType.MONTHLY_CONTRIBUTION && tx.getTransactionType() == TransactionType.ADDITION) {
                     lastMonthlyContributionAddition = tx.getAmount();
@@ -195,7 +195,7 @@ public class MemberProcessingService {
         }
 
         if (request.getFinancialAidPayment() != null && request.getFinancialAidPayment().compareTo(BigDecimal.ZERO) > 0) {
-            ledgerService.recordTransaction(memberId, AccountType.FINANCIAL_AID, TransactionType.REPAYMENT, request.getFinancialAidPayment(), meetingId, "MEETING_FINANCIAL_AID_PAYMENT", null, request.getNotes(), null, request.getTransactionDate(), operator);
+            ledgerService.recordTransaction(memberId, AccountType.FINANCIAL_AID, TransactionType.ADDITION, request.getFinancialAidPayment(), meetingId, "MEETING_FINANCIAL_AID_GIVEN", null, request.getNotes(), null, request.getTransactionDate(), operator);
         }
 
         if (request.getMonthlyContributionAddition() != null && request.getMonthlyContributionAddition().compareTo(BigDecimal.ZERO) > 0) {

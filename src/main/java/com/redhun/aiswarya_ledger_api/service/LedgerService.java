@@ -97,6 +97,11 @@ public class LedgerService {
         if (meetingId != null) {
             meeting = meetingRepository.findById(meetingId)
                     .orElseThrow(() -> new ResourceNotFoundException("Meeting", "id", meetingId));
+        } else {
+            // Auto-link to currently OPEN meeting, or SCHEDULED meeting if no OPEN meeting exists
+            meeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.OPEN)
+                    .orElseGet(() -> meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.SCHEDULED)
+                            .orElse(null));
         }
 
         Long specialLoanTypeId = specialLoanType != null ? specialLoanType.getId() : null;
@@ -115,9 +120,15 @@ public class LedgerService {
                 });
 
         BigDecimal balanceBefore = account.getCurrentBalance();
+        TransactionType effectiveTransactionType = transactionType;
+
+        if (transactionType == TransactionType.ADDITION && (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) == 0)) {
+            effectiveTransactionType = TransactionType.INITIAL_BALANCE;
+        }
+
         BigDecimal balanceAfter;
 
-        switch (transactionType) {
+        switch (effectiveTransactionType) {
             case LOAN_ISSUED:
             case ADDITION:
             case INTEREST_APPLIED:
@@ -155,7 +166,7 @@ public class LedgerService {
                 .member(member)
                 .accountType(accountType)
                 .specialLoanType(specialLoanType)
-                .transactionType(transactionType)
+                .transactionType(effectiveTransactionType)
                 .amount(amount)
                 .balanceBefore(balanceBefore)
                 .balanceAfter(balanceAfter)
@@ -386,7 +397,7 @@ public class LedgerService {
 
     @Transactional(readOnly = true)
     public List<FinancialTransactionDto> getRecentTransactions() {
-        return transactionRepository.findTop20ByOrderByCreatedAtDescIdDesc().stream()
+        return transactionRepository.findTop5ByOrderByCreatedAtDescIdDesc().stream()
                 .map(this::mapToDto)
                 .toList();
     }
@@ -415,8 +426,8 @@ public class LedgerService {
     public FinancialTransactionDto mapToDto(FinancialTransaction tx) {
         return FinancialTransactionDto.builder()
                 .id(tx.getId())
-                .memberId(tx.getMember().getId())
-                .memberName(tx.getMember().getFullName())
+                .memberId(tx.getMember() != null ? tx.getMember().getId() : null)
+                .memberName(tx.getMember() != null ? tx.getMember().getFullName() : "Group Account")
                 .accountType(tx.getAccountType())
                 .specialLoanTypeId(tx.getSpecialLoanType() != null ? tx.getSpecialLoanType().getId() : null)
                 .specialLoanTypeName(tx.getSpecialLoanType() != null ? tx.getSpecialLoanType().getName() : null)

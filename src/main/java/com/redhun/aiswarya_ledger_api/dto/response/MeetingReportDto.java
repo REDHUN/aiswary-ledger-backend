@@ -27,8 +27,13 @@ public class MeetingReportDto {
     private BigDecimal totalDepositsCollected;
     private BigDecimal totalFinesCollected;
     private BigDecimal totalMonthlyContributions;
+    private BigDecimal totalSpecialLoanRepayments;
+    private List<SpecialLoanRegisterItemDto> specialLoanBreakdown;
     private BigDecimal totalFinancialAid;
     private BigDecimal totalLoansIssued;
+    private BigDecimal totalGroupExpenses;
+    private List<GroupExpenseDto> groupExpensesBreakdown;
+    private BigDecimal surplusAmount;
 
     private List<MemberMeetingCollectionDto> memberCollections;
 
@@ -44,6 +49,7 @@ public class MeetingReportDto {
         private BigDecimal depositAddition;
         private BigDecimal finePayment;
         private BigDecimal contributionAddition;
+        private BigDecimal specialLoanRepayment;
         private BigDecimal financialAidPayment;
         private BigDecimal totalMemberCollected;
     }

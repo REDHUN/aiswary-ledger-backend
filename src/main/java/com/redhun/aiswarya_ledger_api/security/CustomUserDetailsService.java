@@ -20,9 +20,13 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        User user = userRepository.findByUsername(identifier)
+                .orElseGet(() -> memberRepository.findByPhone(identifier)
+                        .map(Member::getUser)
+                        .filter(u -> u != null)
+                        .orElseThrow(() -> new UsernameNotFoundException("User not found with mobile number or username: " + identifier))
+                );
 
         Long memberId = memberRepository.findByUserId(user.getId())
                 .map(Member::getId)

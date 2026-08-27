@@ -17,6 +17,8 @@ public interface InterestCalculationRepository extends JpaRepository<InterestCal
 
     List<InterestCalculation> findByInterestPeriod(String interestPeriod);
 
+    List<InterestCalculation> findByMeetingId(Long meetingId);
+
     List<InterestCalculation> findByMemberIdOrderByCalculatedAtDesc(Long memberId);
 
     List<InterestCalculation> findByMemberIdAndStatusIn(Long memberId, List<InterestStatus> statuses);

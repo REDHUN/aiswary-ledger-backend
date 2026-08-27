@@ -39,6 +39,7 @@ public class ImportService {
     private final UserRepository userRepository;
     private final InterestCalculationRepository interestCalculationRepository;
     private final SystemSettingService systemSettingService;
+    private final MeetingMemberRepository meetingMemberRepository;
 
     @Transactional
     public BulkImportResponseDto importBulkTransactions(BulkImportRequest request, User operator) {
@@ -179,6 +180,19 @@ public class ImportService {
                             operator
                     );
 
+                    if (meeting != null && member != null) {
+                        if (meetingMemberRepository.findByMeetingIdAndMemberId(meeting.getId(), member.getId()).isEmpty()) {
+                            MeetingMember mm = MeetingMember.builder()
+                                    .meeting(meeting)
+                                    .member(member)
+                                    .processingStatus(com.redhun.aiswarya_ledger_api.domain.enums.MemberProcessingStatus.COMPLETED)
+                                    .processedAt(ZonedDateTime.now())
+                                    .processedBy(operator)
+                                    .build();
+                            meetingMemberRepository.save(mm);
+                        }
+                    }
+
                     if (item.getTransactionType() == TransactionType.INTEREST_APPLIED) {
                                                 LocalDate txDate = item.getTransactionDate() != null ? item.getTransactionDate() : LocalDate.now();
                         String period = item.getInterestPeriod() != null && !item.getInterestPeriod().isBlank()
@@ -234,6 +248,30 @@ public class ImportService {
                         (i + 1), item.getMemberNumber(), item.getMeetingNumber(), item.getTransactionDate(), e.getMessage());
                 log.error("Error importing bulk item: {}", err, e);
                 errors.add(err);
+            }
+        }
+
+        // Ensure meeting_members snapshot is populated for all imported meetings
+        Set<Long> processedMeetingIds = new HashSet<>();
+        for (BulkImportItemDto item : items) {
+            if (item.getMeetingNumber() != null) {
+                meetingRepository.findByMeetingNumber(item.getMeetingNumber()).ifPresent(m -> {
+                    if (processedMeetingIds.add(m.getId())) {
+                        List<Member> allMembers = memberRepository.findAll();
+                        for (Member activeM : allMembers) {
+                            if (meetingMemberRepository.findByMeetingIdAndMemberId(m.getId(), activeM.getId()).isEmpty()) {
+                                MeetingMember mm = MeetingMember.builder()
+                                        .meeting(m)
+                                        .member(activeM)
+                                        .processingStatus(com.redhun.aiswarya_ledger_api.domain.enums.MemberProcessingStatus.COMPLETED)
+                                        .processedAt(ZonedDateTime.now())
+                                        .processedBy(operator)
+                                        .build();
+                                meetingMemberRepository.save(mm);
+                            }
+                        }
+                    }
+                });
             }
         }
 

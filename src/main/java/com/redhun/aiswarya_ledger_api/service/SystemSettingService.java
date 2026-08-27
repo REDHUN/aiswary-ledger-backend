@@ -1,6 +1,7 @@
 package com.redhun.aiswarya_ledger_api.service;
 
 import com.redhun.aiswarya_ledger_api.domain.entity.FinancialTransaction;
+import com.redhun.aiswarya_ledger_api.domain.entity.Meeting;
 import com.redhun.aiswarya_ledger_api.domain.entity.Member;
 import com.redhun.aiswarya_ledger_api.domain.entity.SystemSetting;
 import com.redhun.aiswarya_ledger_api.domain.entity.User;
@@ -9,6 +10,7 @@ import com.redhun.aiswarya_ledger_api.domain.enums.TransactionType;
 import com.redhun.aiswarya_ledger_api.exception.BusinessException;
 import com.redhun.aiswarya_ledger_api.repository.FinancialTransactionRepository;
 import com.redhun.aiswarya_ledger_api.repository.MemberRepository;
+import com.redhun.aiswarya_ledger_api.repository.MeetingRepository;
 import com.redhun.aiswarya_ledger_api.repository.SystemSettingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,7 +26,9 @@ public class SystemSettingService {
     private final SystemSettingRepository systemSettingRepository;
     private final FinancialTransactionRepository financialTransactionRepository;
     private final MemberRepository memberRepository;
+    private final MeetingRepository meetingRepository;
     public static final String SURPLUS_AMOUNT_KEY = "surplus_amount";
+
 
     @Transactional(readOnly = true)
     public BigDecimal getSurplusAmount() {
@@ -64,6 +68,11 @@ public class SystemSettingService {
 
     @Transactional
     public BigDecimal addSurplusAmount(BigDecimal amountToAdd, String description, User operator) {
+        return addSurplusAmount(amountToAdd, description, operator, null);
+    }
+
+    @Transactional
+    public BigDecimal addSurplusAmount(BigDecimal amountToAdd, String description, User operator, Meeting meeting) {
         if (amountToAdd == null || amountToAdd.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("INVALID_AMOUNT", "Surplus amount to add must be greater than zero");
         }
@@ -73,6 +82,12 @@ public class SystemSettingService {
 
         updateSurplusAmount(newSurplus);
 
+        // If a meeting is provided, also update the meeting's surplusAmount field
+        if (meeting != null) {
+            meeting.setSurplusAmount(newSurplus);
+            meetingRepository.save(meeting);
+        }
+
         FinancialTransaction tx = FinancialTransaction.builder()
                 .member(null)
                 .accountType(AccountType.SURPLUS_FUND)
@@ -80,10 +95,13 @@ public class SystemSettingService {
                 .amount(amountToAdd)
                 .balanceBefore(currentSurplus)
                 .balanceAfter(newSurplus)
-                .referenceType("SURPLUS_FUND_ADDITION")
+                .meeting(meeting)
+                .referenceType(meeting != null ? "MEETING_SURPLUS_TRANSFER" : "SURPLUS_FUND_ADDITION")
                 .description(description != null && !description.trim().isEmpty()
                         ? description
-                        : "Surplus Fund Addition (മിച്ച തുക ചേർത്തു)")
+                        : (meeting != null
+                            ? "Meeting #" + meeting.getMeetingNumber() + " Surplus addition (മിച്ച തുക)"
+                            : "Surplus Fund Addition (മിച്ച തുക ചേർത്തു)"))
                 .createdBy(operator)
                 .createdAt(ZonedDateTime.now())
                 .isReversed(false)

@@ -122,7 +122,9 @@ public class LedgerService {
         BigDecimal balanceBefore = account.getCurrentBalance();
         TransactionType effectiveTransactionType = transactionType;
 
-        if (transactionType == TransactionType.ADDITION && (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) == 0)) {
+        if (accountType == AccountType.FINE && transactionType == TransactionType.REPAYMENT) {
+            effectiveTransactionType = TransactionType.ADDITION;
+        } else if (accountType == AccountType.DEPOSIT && transactionType == TransactionType.ADDITION && (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) == 0)) {
             effectiveTransactionType = TransactionType.INITIAL_BALANCE;
         }
 
@@ -136,7 +138,9 @@ public class LedgerService {
                 balanceAfter = balanceBefore.add(amount);
                 break;
             case REPAYMENT:
-                if (amount.compareTo(balanceBefore) > 0) {
+                if (accountType == AccountType.FINE) {
+                    balanceAfter = balanceBefore.add(amount);
+                } else if (amount.compareTo(balanceBefore) > 0) {
                     throw new BusinessException(
                             "OVERPAYMENT_NOT_ALLOWED",
                             String.format("Repayment amount (₹%s) exceeds current balance (₹%s) for account category %s",

@@ -14,4 +14,7 @@ public class SurplusAmountRequest {
     private BigDecimal surplusAmount;
 
     private String description;
+
+    /** Optional: if provided, the surplus amount will also be linked to and reflected in this meeting */
+    private Long meetingId;
 }

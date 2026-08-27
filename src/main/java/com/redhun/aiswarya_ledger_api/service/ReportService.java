@@ -174,10 +174,7 @@ public class ReportService {
         List<FinancialTransaction> txList = financialTransactionRepository.findByMeetingId(meetingId).stream()
                 .filter(t -> !Boolean.TRUE.equals(t.getIsReversed())
                         && !"MEETING_SURPLUS_TRANSFER".equals(t.getReferenceType())
-                        && !"SURPLUS_FUND_ADDITION".equals(t.getReferenceType())
-                        && !"OPENING_BALANCE".equals(t.getReferenceType()) && !"HISTORICAL_IMPORT".equals(t.getReferenceType()) && !"INITIAL_BALANCE".equals(t.getReferenceType())
-                        && !"HISTORICAL_IMPORT".equals(t.getReferenceType())
-                        && !"INITIAL_BALANCE".equals(t.getReferenceType()))
+                        && !"SURPLUS_FUND_ADDITION".equals(t.getReferenceType()))
                 .toList();
 
         BigDecimal totalRepayments = BigDecimal.ZERO;
@@ -226,7 +223,7 @@ public class ReportService {
                 totalFines = totalFines.add(amt);
                 memberDto.setFinePayment(memberDto.getFinePayment().add(amt));
                 memberDto.setTotalMemberCollected(memberDto.getTotalMemberCollected().add(amt));
-            } else if (tx.getAccountType() == AccountType.MONTHLY_CONTRIBUTION && tx.getTransactionType() == TransactionType.ADDITION) {
+            } else if (tx.getAccountType() == AccountType.MONTHLY_CONTRIBUTION && (tx.getTransactionType() == TransactionType.ADDITION || tx.getTransactionType() == TransactionType.INITIAL_BALANCE)) {
                 totalContributions = totalContributions.add(amt);
                 memberDto.setContributionAddition(memberDto.getContributionAddition().add(amt));
                 memberDto.setTotalMemberCollected(memberDto.getTotalMemberCollected().add(amt));

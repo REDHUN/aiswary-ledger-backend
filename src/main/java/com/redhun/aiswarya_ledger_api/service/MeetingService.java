@@ -27,6 +27,7 @@ import com.redhun.aiswarya_ledger_api.repository.GroupProfitRepository;
 import com.redhun.aiswarya_ledger_api.repository.MeetingMemberRepository;
 import com.redhun.aiswarya_ledger_api.repository.MeetingRepository;
 import com.redhun.aiswarya_ledger_api.repository.MemberRepository;
+import com.redhun.aiswarya_ledger_api.repository.InterestCalculationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,6 +54,7 @@ public class MeetingService {
     private final GroupExpenseRepository groupExpenseRepository;
     private final GroupProfitRepository groupProfitRepository;
     private final GroupProfitService groupProfitService;
+    private final InterestCalculationRepository interestCalculationRepository;
 
     @Transactional
     public MeetingDto scheduleMeeting(ScheduleMeetingRequest request, User operator) {
@@ -163,21 +166,47 @@ public class MeetingService {
         Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
         if (meeting == null) return;
 
-        BigDecimal collections = financialTransactionRepository.sumMeetingCollectionsExcludingAid(
-                meetingId, TransactionType.REVERSAL, AccountType.FINANCIAL_AID, TransactionType.INTEREST_APPLIED);
-        if (collections == null) collections = BigDecimal.ZERO;
+        Long mId = meeting.getId();
 
-        BigDecimal aid = financialTransactionRepository.sumMeetingFinancialAid(
-                meetingId, TransactionType.REVERSAL, AccountType.FINANCIAL_AID);
+        // 1. Collections: Deposits + Loan Repayments + Fines + Monthly Contributions + Special Loan Repayments + Interest + Group Profits
+        BigDecimal deposits = financialTransactionRepository.sumMeetingCategory(mId, AccountType.DEPOSIT, TransactionType.ADDITION);
+        if (deposits == null) deposits = BigDecimal.ZERO;
+
+        BigDecimal loanRepayments = financialTransactionRepository.sumMeetingCategory(mId, AccountType.LOAN, TransactionType.REPAYMENT);
+        if (loanRepayments == null) loanRepayments = BigDecimal.ZERO;
+
+        BigDecimal fines = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINE, TransactionType.ADDITION);
+        if (fines == null) fines = BigDecimal.ZERO;
+
+        BigDecimal contributions = financialTransactionRepository.sumMeetingCategory(mId, AccountType.MONTHLY_CONTRIBUTION, TransactionType.ADDITION);
+        if (contributions == null) contributions = BigDecimal.ZERO;
+
+        BigDecimal specialLoanRepayments = financialTransactionRepository.sumMeetingCategory(mId, AccountType.SPECIAL_LOAN, TransactionType.REPAYMENT);
+        if (specialLoanRepayments == null) specialLoanRepayments = BigDecimal.ZERO;
+
+        BigDecimal groupProfits = groupProfitRepository.sumMeetingProfits(mId);
+        if (groupProfits == null) groupProfits = BigDecimal.ZERO;
+
+        BigDecimal totalCollections = deposits
+                .add(loanRepayments)
+                .add(fines)
+                .add(contributions)
+                .add(specialLoanRepayments)
+                .add(groupProfits);
+
+        // 2. Deductions: Financial Aid + Group Expenses + Loans Issued
+        BigDecimal aid = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINANCIAL_AID, TransactionType.ADDITION);
         if (aid == null) aid = BigDecimal.ZERO;
 
-        BigDecimal groupExpenses = groupExpenseRepository.sumMeetingExpenses(meetingId);
+        BigDecimal groupExpenses = groupExpenseRepository.sumMeetingExpenses(mId);
         if (groupExpenses == null) groupExpenses = BigDecimal.ZERO;
 
-        BigDecimal loansIssued = financialTransactionRepository.sumMeetingLoansIssued(meetingId);
+        BigDecimal loansIssued = financialTransactionRepository.sumMeetingLoansIssued(mId);
         if (loansIssued == null) loansIssued = BigDecimal.ZERO;
 
-        BigDecimal netChange = collections.subtract(aid).subtract(groupExpenses).subtract(loansIssued);
+        BigDecimal totalDeductions = aid.add(groupExpenses).add(loansIssued);
+
+        BigDecimal netChange = totalCollections.subtract(totalDeductions);
 
         BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
         BigDecimal newSurplus = currentSurplus.add(netChange);
@@ -187,31 +216,27 @@ public class MeetingService {
 
         systemSettingService.updateSurplusAmount(newSurplus);
         meeting.setSurplusAmount(newSurplus);
-        meeting = meetingRepository.save(meeting);
+        meetingRepository.save(meeting);
 
         if (netChange.compareTo(BigDecimal.ZERO) > 0) {
             User operator = meeting.getCreatedBy();
-            Member member = memberRepository.findByUserId(operator != null ? operator.getId() : null)
-                    .orElseGet(() -> memberRepository.findByIsActiveTrue().stream().findFirst().orElse(null));
 
-            if (member != null) {
-                FinancialTransaction tx = FinancialTransaction.builder()
-                        .member(member)
-                        .accountType(AccountType.DEPOSIT)
-                        .transactionType(TransactionType.ADDITION)
-                        .amount(netChange)
-                        .balanceBefore(currentSurplus)
-                        .balanceAfter(newSurplus)
-                        .meeting(meeting)
-                        .referenceType("MEETING_SURPLUS_TRANSFER")
-                        .description("Meeting #" + meeting.getMeetingNumber() + " Net Collections added to Surplus Fund (മിച്ച തുക)")
-                        .createdBy(operator)
-                        .createdAt(ZonedDateTime.now())
-                        .isReversed(false)
-                        .build();
+            FinancialTransaction tx = FinancialTransaction.builder()
+                    .member(null)
+                    .accountType(AccountType.SURPLUS_FUND)
+                    .transactionType(TransactionType.SURPLUS_ADDITION)
+                    .amount(netChange)
+                    .balanceBefore(currentSurplus)
+                    .balanceAfter(newSurplus)
+                    .meeting(meeting)
+                    .referenceType("MEETING_SURPLUS_TRANSFER")
+                    .description("Meeting #" + meeting.getMeetingNumber() + " Net Collections added to Surplus Fund (മിച്ച തുക)")
+                    .createdBy(operator)
+                    .createdAt(ZonedDateTime.now())
+                    .isReversed(false)
+                    .build();
 
-                financialTransactionRepository.save(tx);
-            }
+            financialTransactionRepository.save(tx);
         }
     }
 
@@ -277,7 +302,7 @@ public class MeetingService {
         BigDecimal loanRepayments = financialTransactionRepository.sumMeetingCategory(mId, AccountType.LOAN, TransactionType.REPAYMENT);
         if (loanRepayments == null) loanRepayments = BigDecimal.ZERO;
 
-        BigDecimal fines = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINE, TransactionType.REPAYMENT);
+        BigDecimal fines = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINE, TransactionType.ADDITION);
         if (fines == null) fines = BigDecimal.ZERO;
 
         BigDecimal contributions = financialTransactionRepository.sumMeetingCategory(mId, AccountType.MONTHLY_CONTRIBUTION, TransactionType.ADDITION);
@@ -342,9 +367,12 @@ public class MeetingService {
         BigDecimal totalCollections = deposits.add(loanRepayments).add(fines).add(contributions).add(specialLoanRepayments).add(groupProfits);
         BigDecimal netCollections = totalCollections.subtract(aidDisbursed).subtract(groupExpenses).subtract(loansIssued);
 
-        BigDecimal surplus = meeting.getSurplusAmount();
-        if (surplus == null) {
-            surplus = calculateCumulativeSurplusUpToMeeting(meeting);
+        BigDecimal surplus = BigDecimal.ZERO;
+        if (meeting.getStatus() == MeetingStatus.COMPLETED) {
+            surplus = meeting.getSurplusAmount();
+            if (surplus == null) {
+                surplus = calculateCumulativeSurplusUpToMeeting(meeting);
+            }
         }
 
         return CompletedMeetingRegisterDto.builder()

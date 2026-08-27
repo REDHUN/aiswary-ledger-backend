@@ -191,7 +191,7 @@ public class MemberProcessingService {
         }
 
         if (request.getFinePayment() != null && request.getFinePayment().compareTo(BigDecimal.ZERO) > 0) {
-            ledgerService.recordTransaction(memberId, AccountType.FINE, TransactionType.REPAYMENT, request.getFinePayment(), meetingId, "MEETING_FINE_PAYMENT", null, request.getNotes(), null, request.getTransactionDate(), operator);
+            ledgerService.recordTransaction(memberId, AccountType.FINE, TransactionType.ADDITION, request.getFinePayment(), meetingId, "MEETING_FINE_PAYMENT", null, request.getNotes(), null, request.getTransactionDate(), operator);
         }
 
         if (request.getFinancialAidPayment() != null && request.getFinancialAidPayment().compareTo(BigDecimal.ZERO) > 0) {

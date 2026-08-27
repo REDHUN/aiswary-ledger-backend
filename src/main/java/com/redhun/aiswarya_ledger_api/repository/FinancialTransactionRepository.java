@@ -31,7 +31,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
 
     Optional<FinancialTransaction> findByIdempotencyKey(String idempotencyKey);
 
-    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.transactionType != :reversalType AND t.accountType != :aidType AND t.transactionType != :interestType AND t.transactionType != com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.LOAN_ISSUED AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION' AND t.referenceType != 'OPENING_BALANCE' AND t.referenceType != 'HISTORICAL_IMPORT' AND t.referenceType != 'INITIAL_BALANCE'))")
+    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.transactionType != :reversalType AND t.accountType != :aidType AND t.transactionType != :interestType AND t.transactionType != com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.LOAN_ISSUED AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION'))")
     BigDecimal sumMeetingCollectionsExcludingAid(
             @Param("meetingId") Long meetingId,
             @Param("reversalType") TransactionType reversalType,
@@ -52,14 +52,14 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE (t.isReversed IS NULL OR t.isReversed = false) AND t.accountType = com.redhun.aiswarya_ledger_api.domain.enums.AccountType.FINANCIAL_AID AND t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.ADDITION")
     BigDecimal sumAllFinancialAidIssued();
 
-    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.accountType = :accountType AND (t.transactionType = :transactionType OR (t.accountType = com.redhun.aiswarya_ledger_api.domain.enums.AccountType.DEPOSIT AND t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.INITIAL_BALANCE)) AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION' AND t.referenceType != 'OPENING_BALANCE' AND t.referenceType != 'HISTORICAL_IMPORT' AND t.referenceType != 'INITIAL_BALANCE'))")
+    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.accountType = :accountType AND (t.transactionType = :transactionType OR t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.ADDITION OR t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.INITIAL_BALANCE OR (t.accountType = com.redhun.aiswarya_ledger_api.domain.enums.AccountType.FINE AND (t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.ADDITION OR t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.REPAYMENT))) AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION'))")
     BigDecimal sumMeetingCategory(
             @Param("meetingId") Long meetingId,
             @Param("accountType") AccountType accountType,
             @Param("transactionType") TransactionType transactionType
     );
 
-    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.transactionType != 'REVERSAL' AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION' AND t.referenceType != 'OPENING_BALANCE' AND t.referenceType != 'HISTORICAL_IMPORT' AND t.referenceType != 'INITIAL_BALANCE'))")
+    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.transactionType != 'REVERSAL' AND (t.referenceType IS NULL OR (t.referenceType != 'MEETING_SURPLUS_TRANSFER' AND t.referenceType != 'SURPLUS_FUND_ADDITION'))")
     BigDecimal sumTotalMeetingCollections(@Param("meetingId") Long meetingId);
 
     @Query("SELECT t.specialLoanType.id, t.specialLoanType.name, SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.accountType = com.redhun.aiswarya_ledger_api.domain.enums.AccountType.SPECIAL_LOAN AND t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.REPAYMENT GROUP BY t.specialLoanType.id, t.specialLoanType.name")

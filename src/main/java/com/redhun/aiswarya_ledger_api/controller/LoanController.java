@@ -43,7 +43,7 @@ public class LoanController {
                     com.redhun.aiswarya_ledger_api.domain.enums.AccountType.SPECIAL_LOAN,
                     com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.LOAN_ISSUED,
                     request.getAmount(),
-                    request.getMeetingId(),
+                    null,
                     "SPECIAL_LOAN_ISSUE",
                     null,
                     request.getDescription(),

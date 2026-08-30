@@ -162,6 +162,59 @@ public class MeetingService {
         return mapToDto(meeting);
     }
 
+    @Transactional
+    public void updateMeetingSurplusForImport(Long meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        if (meeting == null) return;
+
+        Long mId = meeting.getId();
+
+        // 1. Sum all regular collections for this meeting
+        BigDecimal deposits = financialTransactionRepository.sumMeetingCategory(mId, AccountType.DEPOSIT, TransactionType.ADDITION);
+        if (deposits == null) deposits = BigDecimal.ZERO;
+
+        BigDecimal loanRepayments = financialTransactionRepository.sumMeetingCategory(mId, AccountType.LOAN, TransactionType.REPAYMENT);
+        if (loanRepayments == null) loanRepayments = BigDecimal.ZERO;
+
+        BigDecimal fines = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINE, TransactionType.ADDITION);
+        if (fines == null) fines = BigDecimal.ZERO;
+
+        BigDecimal contributions = financialTransactionRepository.sumMeetingCategory(mId, AccountType.MONTHLY_CONTRIBUTION, TransactionType.ADDITION);
+        if (contributions == null) contributions = BigDecimal.ZERO;
+
+        BigDecimal specialLoanRepayments = financialTransactionRepository.sumMeetingCategory(mId, AccountType.SPECIAL_LOAN, TransactionType.REPAYMENT);
+        if (specialLoanRepayments == null) specialLoanRepayments = BigDecimal.ZERO;
+
+        BigDecimal groupProfits = groupProfitRepository.sumMeetingProfits(mId);
+        if (groupProfits == null) groupProfits = BigDecimal.ZERO;
+
+        // 2. Deductions
+        BigDecimal aid = financialTransactionRepository.sumMeetingCategory(mId, AccountType.FINANCIAL_AID, TransactionType.ADDITION);
+        if (aid == null) aid = BigDecimal.ZERO;
+
+        BigDecimal groupExpenses = groupExpenseRepository.sumMeetingExpenses(mId);
+        if (groupExpenses == null) groupExpenses = BigDecimal.ZERO;
+
+        BigDecimal loansIssued = financialTransactionRepository.sumMeetingLoansIssued(mId);
+        if (loansIssued == null) loansIssued = BigDecimal.ZERO;
+
+        // 3. Net change for this meeting
+        BigDecimal netChange = deposits.add(loanRepayments).add(fines).add(contributions)
+                .add(specialLoanRepayments).add(groupProfits)
+                .subtract(aid).subtract(groupExpenses).subtract(loansIssued);
+
+        // 4. Any explicit surplus fund additions that were linked to this meeting (e.g. SURPLUS_ADDITION via CSV)
+        BigDecimal surplusFundAdditions = financialTransactionRepository.sumMeetingSurplusFundAdditions(mId);
+        if (surplusFundAdditions == null) surplusFundAdditions = BigDecimal.ZERO;
+
+        // 5. Total surplus for this meeting = its own net + any initial surplus reserves assigned to it
+        BigDecimal meetingSurplus = netChange.add(surplusFundAdditions);
+        if (meetingSurplus.compareTo(BigDecimal.ZERO) < 0) meetingSurplus = BigDecimal.ZERO;
+
+        meeting.setSurplusAmount(meetingSurplus);
+        meetingRepository.save(meeting);
+    }
+
     private void updateSurplusAmountOnMeetingCompletion(Long meetingId) {
         Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
         if (meeting == null) return;
@@ -406,13 +459,17 @@ public class MeetingService {
 
         BigDecimal total = BigDecimal.ZERO;
         for (Meeting m : priorCompleted) {
+            // Regular meeting net collections
             BigDecimal col = financialTransactionRepository.sumMeetingCollectionsExcludingAid(
                     m.getId(), TransactionType.REVERSAL, AccountType.FINANCIAL_AID, TransactionType.INTEREST_APPLIED);
             if (col == null) col = BigDecimal.ZERO;
             BigDecimal aid = financialTransactionRepository.sumMeetingFinancialAid(
                     m.getId(), TransactionType.REVERSAL, AccountType.FINANCIAL_AID);
             if (aid == null) aid = BigDecimal.ZERO;
-            total = total.add(col.subtract(aid));
+            // Explicit surplus fund additions (e.g. initial reserves imported via CSV)
+            BigDecimal surplusFundAdditions = financialTransactionRepository.sumMeetingSurplusFundAdditions(m.getId());
+            if (surplusFundAdditions == null) surplusFundAdditions = BigDecimal.ZERO;
+            total = total.add(col.subtract(aid)).add(surplusFundAdditions);
         }
         return total.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : total;
     }

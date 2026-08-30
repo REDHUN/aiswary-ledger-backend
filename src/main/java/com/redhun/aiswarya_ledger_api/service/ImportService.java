@@ -40,6 +40,7 @@ public class ImportService {
     private final InterestCalculationRepository interestCalculationRepository;
     private final SystemSettingService systemSettingService;
     private final MeetingMemberRepository meetingMemberRepository;
+    private final MeetingService meetingService;
 
     @Transactional
     public BulkImportResponseDto importBulkTransactions(BulkImportRequest request, User operator) {
@@ -96,10 +97,19 @@ public class ImportService {
                             ? item.getDescription().trim()
                             : "Initial Group Surplus Reserve (Michathuka)";
 
+                    Meeting targetMeeting = meeting;
+                    if (targetMeeting == null && !createdMeetingMap.isEmpty()) {
+                        Integer minKey = createdMeetingMap.keySet().stream().min(Integer::compareTo).orElse(null);
+                        if (minKey != null) {
+                            targetMeeting = createdMeetingMap.get(minKey);
+                        }
+                    }
+
                     systemSettingService.addSurplusAmount(
                             item.getAmount() != null ? item.getAmount() : BigDecimal.ZERO,
                             desc,
-                            operator
+                            operator,
+                            targetMeeting
                     );
                     successCount++;
                     continue;
@@ -166,13 +176,17 @@ public class ImportService {
                             ? item.getDescription()
                             : (meeting != null ? "Meeting #" + meeting.getMeetingNumber() + " Import" : "Historical ledger import");
 
+                    Long effectiveMeetingId = ((item.getAccountType() == AccountType.SPECIAL_LOAN && (item.getTransactionType() == TransactionType.LOAN_ISSUED || item.getTransactionType() == TransactionType.INITIAL_BALANCE))
+                            || (item.getAccountType() == AccountType.FINE && item.getTransactionType() == TransactionType.ADDITION))
+                            ? null : meetingId;
+
                     ledgerService.recordTransaction(
                             member.getId(),
                             item.getAccountType(),
                             item.getTransactionType(),
                             item.getAmount(),
-                            meetingId,
-                            meetingId != null ? "MEETING_COLLECTION" : "HISTORICAL_IMPORT",
+                            effectiveMeetingId,
+                            effectiveMeetingId != null ? "MEETING_COLLECTION" : "HISTORICAL_IMPORT",
                             null,
                             desc,
                             null,
@@ -273,6 +287,13 @@ public class ImportService {
                     }
                 });
             }
+        }
+
+        // Recalculate surplus and register snapshots for all imported meetings sequentially
+        List<Meeting> allImportedMeetings = new ArrayList<>(createdMeetingMap.values());
+        allImportedMeetings.sort(Comparator.comparing(Meeting::getMeetingNumber, Comparator.nullsLast(Comparator.naturalOrder())));
+        for (Meeting m : allImportedMeetings) {
+            meetingService.updateMeetingSurplusForImport(m.getId());
         }
 
         return BulkImportResponseDto.builder()

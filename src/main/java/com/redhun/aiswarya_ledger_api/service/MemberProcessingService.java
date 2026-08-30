@@ -56,7 +56,8 @@ public class MemberProcessingService {
                 .filter(a -> a.getAccountType() == AccountType.SPECIAL_LOAN && a.getSpecialLoanType() != null)
                 .collect(Collectors.toMap(a -> a.getSpecialLoanType().getId(), MemberAccount::getCurrentBalance, (a, b) -> a));
 
-        boolean interestCalculationRequired = meetingMember.getProcessingStatus() != MemberProcessingStatus.COMPLETED && interestService.isInterestCalculationRequired(memberId, meeting.getInterestPeriod());
+        boolean interestCalculationRequired = meetingMember.getProcessingStatus() != MemberProcessingStatus.COMPLETED
+                && interestService.isInterestCalculationRequired(memberId, meeting.getInterestPeriod());
         boolean interestCalculated = interestRepository.findByMemberIdAndInterestPeriod(memberId, meeting.getInterestPeriod()).isPresent();
         boolean processingAllowed = !interestCalculationRequired;
 
@@ -93,7 +94,7 @@ public class MemberProcessingService {
                     lastLoanRepayment = tx.getAmount();
                 } else if (tx.getAccountType() == AccountType.DEPOSIT && (tx.getTransactionType() == TransactionType.ADDITION || tx.getTransactionType() == TransactionType.INITIAL_BALANCE)) {
                     lastDepositAddition = tx.getAmount();
-                } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.REPAYMENT) {
+                } else if (tx.getAccountType() == AccountType.FINE && (tx.getTransactionType() == TransactionType.REPAYMENT || tx.getTransactionType() == TransactionType.ADDITION)) {
                     lastFinePayment = tx.getAmount();
                 } else if (tx.getAccountType() == AccountType.FINANCIAL_AID && tx.getTransactionType() == TransactionType.ADDITION) {
                     lastFinancialAidPayment = tx.getAmount();
@@ -191,7 +192,7 @@ public class MemberProcessingService {
         }
 
         if (request.getFinePayment() != null && request.getFinePayment().compareTo(BigDecimal.ZERO) > 0) {
-            ledgerService.recordTransaction(memberId, AccountType.FINE, TransactionType.ADDITION, request.getFinePayment(), meetingId, "MEETING_FINE_PAYMENT", null, request.getNotes(), null, request.getTransactionDate(), operator);
+            ledgerService.recordTransaction(memberId, AccountType.FINE, TransactionType.REPAYMENT, request.getFinePayment(), meetingId, "MEETING_FINE_REPAYMENT", null, request.getNotes(), null, request.getTransactionDate(), operator);
         }
 
         if (request.getFinancialAidPayment() != null && request.getFinancialAidPayment().compareTo(BigDecimal.ZERO) > 0) {

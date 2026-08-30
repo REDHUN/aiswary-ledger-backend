@@ -34,7 +34,7 @@ public class FineController {
         FinancialTransactionDto tx = ledgerService.addFine(
                 memberId,
                 request.getAmount(),
-                request.getMeetingId(),
+                null,
                 request.getDescription(),
                 request.getTransactionDate(),
                 operator

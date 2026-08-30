@@ -94,11 +94,15 @@ public class LedgerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Member", "id", memberId));
 
         Meeting meeting = null;
-        if (meetingId != null) {
+        if (accountType == AccountType.SPECIAL_LOAN && transactionType == TransactionType.LOAN_ISSUED) {
+            meeting = null;
+        } else if (accountType == AccountType.FINE && transactionType == TransactionType.ADDITION) {
+            meeting = null;
+        } else if (meetingId != null) {
             meeting = meetingRepository.findById(meetingId)
                     .orElseThrow(() -> new ResourceNotFoundException("Meeting", "id", meetingId));
-        } else {
-            // Auto-link to currently OPEN meeting, or SCHEDULED meeting if no OPEN meeting exists
+        } else if (accountType != AccountType.SPECIAL_LOAN && !(accountType == AccountType.FINE && transactionType == TransactionType.ADDITION)) {
+            // Auto-link to currently OPEN meeting, or SCHEDULED meeting if no OPEN meeting exists (except for SPECIAL_LOAN and FINE addition)
             meeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.OPEN)
                     .orElseGet(() -> meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.SCHEDULED)
                             .orElse(null));
@@ -122,9 +126,7 @@ public class LedgerService {
         BigDecimal balanceBefore = account.getCurrentBalance();
         TransactionType effectiveTransactionType = transactionType;
 
-        if (accountType == AccountType.FINE && transactionType == TransactionType.REPAYMENT) {
-            effectiveTransactionType = TransactionType.ADDITION;
-        } else if (accountType == AccountType.DEPOSIT && transactionType == TransactionType.ADDITION && (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) == 0)) {
+        if (accountType == AccountType.DEPOSIT && transactionType == TransactionType.ADDITION && (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) == 0)) {
             effectiveTransactionType = TransactionType.INITIAL_BALANCE;
         }
 
@@ -139,15 +141,29 @@ public class LedgerService {
                 break;
             case REPAYMENT:
                 if (accountType == AccountType.FINE) {
-                    balanceAfter = balanceBefore.add(amount);
+                    if (balanceBefore == null || balanceBefore.compareTo(BigDecimal.ZERO) <= 0) {
+                        throw new BusinessException(
+                                "NO_FINE_BALANCE",
+                                "Cannot repay fine because member has no outstanding fine balance (Current fine is ₹0.00)"
+                        );
+                    }
+                    if (amount.compareTo(balanceBefore) > 0) {
+                        throw new BusinessException(
+                                "OVERPAYMENT_NOT_ALLOWED",
+                                String.format("Fine payment amount (₹%s) exceeds current fine balance (₹%s)",
+                                        amount, balanceBefore)
+                        );
+                    }
+                    balanceAfter = balanceBefore.subtract(amount);
                 } else if (amount.compareTo(balanceBefore) > 0) {
                     throw new BusinessException(
                             "OVERPAYMENT_NOT_ALLOWED",
                             String.format("Repayment amount (₹%s) exceeds current balance (₹%s) for account category %s",
                                     amount, balanceBefore, specialLoanType != null ? specialLoanType.getName() : accountType)
                     );
+                } else {
+                    balanceAfter = balanceBefore.subtract(amount);
                 }
-                balanceAfter = balanceBefore.subtract(amount);
                 break;
             case ADJUSTMENT:
                 balanceAfter = balanceBefore.add(amount);

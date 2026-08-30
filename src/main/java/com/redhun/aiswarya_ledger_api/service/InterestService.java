@@ -36,11 +36,14 @@ public class InterestService {
     /**
      * Checks whether a member requires an interest calculation for the given period.
      */
-    @Transactional(readOnly = true)
+ /*   @Transactional(readOnly = true)
     public boolean isInterestCalculationRequired(Long memberId, String interestPeriod) {
+
+        System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>memberid"+memberId+">>>>>>>>>>interest Period"+interestPeriod);
         if (interestRepository.existsByMemberIdAndInterestPeriod(memberId, interestPeriod)) {
             return false;
         }
+
 
         try {
             String[] parts = interestPeriod.split("-");
@@ -61,6 +64,16 @@ public class InterestService {
         } catch (Exception ignored) {}
 
         return true;
+    }*/
+
+
+    @Transactional(readOnly = true)
+    public boolean isInterestCalculationRequired(
+            Long memberId,
+            String interestPeriod) {
+
+        return !interestRepository
+                .existsByMemberIdAndInterestPeriod(memberId, interestPeriod);
     }
 
     /**

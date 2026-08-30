@@ -82,16 +82,6 @@ public class ExpenseService {
         Meeting meeting = null;
         if (request.getMeetingId() != null) {
             meeting = meetingRepository.findById(request.getMeetingId()).orElse(null);
-        } else {
-            Optional<Meeting> openMeeting = meetingRepository.findFirstByStatusOrderByMeetingDateAsc(MeetingStatus.OPEN);
-            if (openMeeting.isPresent()) {
-                meeting = openMeeting.get();
-            } else {
-                Optional<Meeting> completedMeeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(MeetingStatus.COMPLETED);
-                if (completedMeeting.isPresent()) {
-                    meeting = completedMeeting.get();
-                }
-            }
         }
 
         LocalDate expDate = request.getExpenseDate() != null ? request.getExpenseDate() : LocalDate.now();

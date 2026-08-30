@@ -71,6 +71,9 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE (t.isReversed IS NULL OR t.isReversed = false) AND t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.LOAN_ISSUED")
     BigDecimal sumAllLoansIssued();
 
+    @Query("SELECT SUM(t.amount) FROM FinancialTransaction t WHERE t.meeting.id = :meetingId AND (t.isReversed IS NULL OR t.isReversed = false) AND t.accountType = com.redhun.aiswarya_ledger_api.domain.enums.AccountType.SURPLUS_FUND AND t.transactionType = com.redhun.aiswarya_ledger_api.domain.enums.TransactionType.SURPLUS_ADDITION AND (t.referenceType IS NULL OR t.referenceType = 'SURPLUS_FUND_ADDITION' OR t.referenceType = 'MEETING_SURPLUS_TRANSFER')")
+    BigDecimal sumMeetingSurplusFundAdditions(@Param("meetingId") Long meetingId);
+
 
     List<FinancialTransaction> findByMeetingIdAndTransactionTypeAndIsReversedFalse(Long meetingId, TransactionType transactionType);
 

@@ -110,13 +110,31 @@ public class LedgerService {
         }
 
 
-        if (accountType != AccountType.FINANCIAL_AID) {
+        if (accountType == AccountType.FINANCIAL_AID) {
+            BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
+
+
+            if (currentSurplus.compareTo(amount) < 0) {
+
+                throw new BusinessException(
+                        "INSUFFICIENT_SURPLUS",
+                        String.format(
+                                "Insufficient surplus amount. " +
+                                        "Available surplus is ₹%s, " +
+                                        "but financial aid of ₹%s was requested",
+                                currentSurplus,
+                                amount
+                        )
+                );
+            }
+
+            BigDecimal newSurplus = currentSurplus.subtract(amount);
 
 
 
             // Deduct expense amount from Surplus Amount
-            BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
-            BigDecimal newSurplus = currentSurplus.subtract(amount);
+
+
             if (newSurplus.compareTo(BigDecimal.ZERO) < 0) {
                 newSurplus = BigDecimal.ZERO;
             }

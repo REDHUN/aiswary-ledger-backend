@@ -34,6 +34,7 @@ public class LedgerService {
     private final MeetingRepository meetingRepository;
     private final InterestCalculationRepository interestCalculationRepository;
     private final com.redhun.aiswarya_ledger_api.repository.SpecialLoanTypeRepository specialLoanTypeRepository;
+    private final SystemSettingService systemSettingService;
 
     /**
      * Executes a financial account change under pessimistic write lock, appending a transaction to the audit ledger.
@@ -101,12 +102,43 @@ public class LedgerService {
         } else if (meetingId != null) {
             meeting = meetingRepository.findById(meetingId)
                     .orElseThrow(() -> new ResourceNotFoundException("Meeting", "id", meetingId));
-        } else if (accountType != AccountType.SPECIAL_LOAN && !(accountType == AccountType.FINE && transactionType == TransactionType.ADDITION)) {
+        } else if (accountType != AccountType.SPECIAL_LOAN) {
             // Auto-link to currently OPEN meeting, or SCHEDULED meeting if no OPEN meeting exists (except for SPECIAL_LOAN and FINE addition)
             meeting = meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.OPEN)
                     .orElseGet(() -> meetingRepository.findTop1ByStatusOrderByMeetingDateDescMeetingNumberDesc(com.redhun.aiswarya_ledger_api.domain.enums.MeetingStatus.SCHEDULED)
                             .orElse(null));
         }
+
+
+        if (accountType != AccountType.FINANCIAL_AID) {
+
+
+
+            // Deduct expense amount from Surplus Amount
+            BigDecimal currentSurplus = systemSettingService.getSurplusAmount();
+            BigDecimal newSurplus = currentSurplus.subtract(amount);
+            if (newSurplus.compareTo(BigDecimal.ZERO) < 0) {
+                newSurplus = BigDecimal.ZERO;
+            }
+            systemSettingService.updateSurplusAmount(newSurplus);
+
+            // Deduct from meeting surplus snapshot if set
+            if (meeting != null && meeting.getSurplusAmount() != null) {
+                BigDecimal mSurplus = meeting.getSurplusAmount().subtract(amount);
+                if (mSurplus.compareTo(BigDecimal.ZERO) < 0) {
+                    mSurplus = BigDecimal.ZERO;
+                }
+                meeting.setSurplusAmount(mSurplus);
+                meetingRepository.save(meeting);
+            }
+
+
+
+        }
+
+
+
+
 
         Long specialLoanTypeId = specialLoanType != null ? specialLoanType.getId() : null;
 
@@ -217,25 +249,25 @@ public class LedgerService {
         return issueLoan(memberId, amount, meetingId, description, null, operator);
     }
 
-    @Transactional
-    public FinancialTransactionDto addDeposit(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
-        return addDeposit(memberId, amount, meetingId, description, null, operator);
-    }
-
-    @Transactional
-    public FinancialTransactionDto addFine(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
-        return addFine(memberId, amount, meetingId, description, null, operator);
-    }
-
-    @Transactional
-    public FinancialTransactionDto addMonthlyContribution(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
-        return addMonthlyContribution(memberId, amount, meetingId, description, null, operator);
-    }
-
-    @Transactional
-    public FinancialTransactionDto addFinancialAid(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
-        return addFinancialAid(memberId, amount, meetingId, description, null, operator);
-    }
+//    @Transactional
+//    public FinancialTransactionDto addDeposit(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
+//        return addDeposit(memberId, amount, meetingId, description, null, operator);
+//    }
+//
+//    @Transactional
+//    public FinancialTransactionDto addFine(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
+//        return addFine(memberId, amount, meetingId, description, null, operator);
+//    }
+//
+//    @Transactional
+//    public FinancialTransactionDto addMonthlyContribution(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
+//        return addMonthlyContribution(memberId, amount, meetingId, description, null, operator);
+//    }
+//
+//    @Transactional
+//    public FinancialTransactionDto addFinancialAid(Long memberId, BigDecimal amount, Long meetingId, String description, User operator) {
+//        return addFinancialAid(memberId, amount, meetingId, description, null, operator);
+//    }
 
     @Transactional
     public FinancialTransactionDto issueLoan(Long memberId, BigDecimal amount, Long meetingId, String description, LocalDate transactionDate, User operator) {
@@ -273,6 +305,7 @@ public class LedgerService {
                 transactionDate,
                 operator
         );
+
         return mapToDto(tx);
     }
 
@@ -323,6 +356,9 @@ public class LedgerService {
      */
     @Transactional
     public FinancialTransactionDto addFinancialAid(Long memberId, BigDecimal amount, Long meetingId, String description, LocalDate transactionDate, User operator) {
+
+
+
         FinancialTransaction tx = recordTransaction(
                 memberId,
                 AccountType.FINANCIAL_AID,
@@ -336,6 +372,10 @@ public class LedgerService {
                 transactionDate,
                 operator
         );
+
+
+
+
         return mapToDto(tx);
     }
 

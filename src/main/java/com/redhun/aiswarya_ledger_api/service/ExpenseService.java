@@ -123,7 +123,7 @@ public class ExpenseService {
             String desc = "Group Expense: " + type.getName() + (request.getDescription() != null && !request.getDescription().isBlank() ? " (" + request.getDescription() + ")" : "");
             
             FinancialTransaction tx = FinancialTransaction.builder()
-                    .member(operatorMember)
+
                     .accountType(AccountType.GROUP_EXPENSE)
                     .transactionType(TransactionType.REPAYMENT)
                     .amount(request.getAmount())

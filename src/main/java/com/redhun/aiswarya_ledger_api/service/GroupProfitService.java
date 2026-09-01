@@ -88,7 +88,7 @@ public class GroupProfitService {
             String desc = "Group Profit: " + request.getTitle().trim() + (request.getDescription() != null && !request.getDescription().isBlank() ? " (" + request.getDescription() + ")" : "");
             
             FinancialTransaction tx = FinancialTransaction.builder()
-                    .member(operatorMember)
+
                     .accountType(AccountType.GROUP_PROFIT)
                     .transactionType(TransactionType.ADDITION)
                     .amount(request.getAmount())

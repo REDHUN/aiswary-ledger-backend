@@ -15,6 +15,8 @@ public interface MemberAccountRepository extends JpaRepository<MemberAccount, Lo
 
     List<MemberAccount> findByMemberId(Long memberId);
 
+    List<MemberAccount> findByMemberIdOrderByOrderNumberAscIdAsc(Long memberId);
+
     Optional<MemberAccount> findByMemberIdAndAccountType(Long memberId, AccountType accountType);
 
     Optional<MemberAccount> findByMemberIdAndAccountTypeAndSpecialLoanTypeId(Long memberId, AccountType accountType, Long specialLoanTypeId);

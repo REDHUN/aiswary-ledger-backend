@@ -18,5 +18,6 @@ public class MemberAccountDto {
     private Long specialLoanTypeId;
     private String specialLoanTypeName;
     private BigDecimal currentBalance;
+    private Integer orderNumber;
     private Long version;
 }

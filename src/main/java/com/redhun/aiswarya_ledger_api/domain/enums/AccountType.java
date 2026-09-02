@@ -4,6 +4,7 @@ public enum AccountType {
     LOAN,
     DEPOSIT,
     FINE,
+    TOTAL_PAID_FINE,
     FINANCIAL_AID,
     MONTHLY_CONTRIBUTION,
     INTEREST,

@@ -82,6 +82,7 @@ public class MemberService {
                     .member(member)
                     .accountType(accountType)
                     .currentBalance(BigDecimal.ZERO)
+                    .orderNumber(MemberAccount.getDefaultOrderNumber(accountType))
                     .version(0L)
                     .build();
             memberAccountRepository.save(account);
@@ -129,14 +130,14 @@ public class MemberService {
         if (!memberRepository.existsById(memberId)) {
             throw new ResourceNotFoundException("Member", "id", memberId);
         }
-        return memberAccountRepository.findByMemberId(memberId).stream()
+        return memberAccountRepository.findByMemberIdOrderByOrderNumberAscIdAsc(memberId).stream()
                 .filter(a -> a.getAccountType() != AccountType.SPECIAL_LOAN || a.getSpecialLoanType() != null)
                 .map(this::mapToAccountDto)
                 .collect(Collectors.toList());
     }
 
     public MemberDto mapToMemberDto(Member member) {
-        List<MemberAccountDto> accounts = memberAccountRepository.findByMemberId(member.getId()).stream()
+        List<MemberAccountDto> accounts = memberAccountRepository.findByMemberIdOrderByOrderNumberAscIdAsc(member.getId()).stream()
                 .filter(a -> a.getAccountType() != AccountType.SPECIAL_LOAN || a.getSpecialLoanType() != null)
                 .map(this::mapToAccountDto)
                 .collect(Collectors.toList());
@@ -162,6 +163,7 @@ public class MemberService {
                 .specialLoanTypeId(account.getSpecialLoanType() != null ? account.getSpecialLoanType().getId() : null)
                 .specialLoanTypeName(account.getSpecialLoanType() != null ? account.getSpecialLoanType().getName() : null)
                 .currentBalance(account.getCurrentBalance())
+                .orderNumber(account.getOrderNumber() != null ? account.getOrderNumber() : MemberAccount.getDefaultOrderNumber(account.getAccountType()))
                 .version(account.getVersion())
                 .build();
     }

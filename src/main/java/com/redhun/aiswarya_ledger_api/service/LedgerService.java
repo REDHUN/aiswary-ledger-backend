@@ -168,6 +168,7 @@ public class LedgerService {
                             .accountType(accountType)
                             .specialLoanType(specialLoanType)
                             .currentBalance(BigDecimal.ZERO)
+                            .orderNumber(MemberAccount.getDefaultOrderNumber(accountType))
                             .version(0L)
                             .build();
                     return memberAccountRepository.save(newAcc);
@@ -231,6 +232,24 @@ public class LedgerService {
         // Update account balance
         account.setCurrentBalance(balanceAfter);
         memberAccountRepository.save(account);
+
+        // Update TOTAL_PAID_FINE account when fine is repaid
+        if (accountType == AccountType.FINE && effectiveTransactionType == TransactionType.REPAYMENT) {
+            MemberAccount totalPaidFineAcc = memberAccountRepository.findByMemberIdAndAccountTypeAndSpecialLoanTypeForUpdate(memberId, AccountType.TOTAL_PAID_FINE, null)
+                    .orElseGet(() -> {
+                        MemberAccount newAcc = MemberAccount.builder()
+                                .member(member)
+                                .accountType(AccountType.TOTAL_PAID_FINE)
+                                .currentBalance(BigDecimal.ZERO)
+                                .orderNumber(MemberAccount.getDefaultOrderNumber(AccountType.TOTAL_PAID_FINE))
+                                .version(0L)
+                                .build();
+                        return memberAccountRepository.save(newAcc);
+                    });
+            BigDecimal currentTotalPaidFine = totalPaidFineAcc.getCurrentBalance() != null ? totalPaidFineAcc.getCurrentBalance() : BigDecimal.ZERO;
+            totalPaidFineAcc.setCurrentBalance(currentTotalPaidFine.add(amount));
+            memberAccountRepository.save(totalPaidFineAcc);
+        }
 
         FinancialTransaction tx = FinancialTransaction.builder()
                 .member(member)
@@ -349,6 +368,27 @@ public class LedgerService {
     }
 
     /**
+     * Records a fine repayment.
+     */
+    @Transactional
+    public FinancialTransactionDto repayFine(Long memberId, BigDecimal amount, Long meetingId, String description, LocalDate transactionDate, User operator) {
+        FinancialTransaction tx = recordTransaction(
+                memberId,
+                AccountType.FINE,
+                TransactionType.REPAYMENT,
+                amount,
+                meetingId,
+                "FINE_REPAYMENT",
+                null,
+                description != null ? description : "Fine repayment recorded",
+                null,
+                transactionDate,
+                operator
+        );
+        return mapToDto(tx);
+    }
+
+    /**
      * Records a monthly contribution addition.
      */
     @Transactional
@@ -426,6 +466,18 @@ public class LedgerService {
         if (originalTx.getTransactionType() == TransactionType.REPAYMENT) {
             // Reversing a repayment ADDS amount back to balance
             balanceAfter = balanceBefore.add(originalTx.getAmount());
+            if (originalTx.getAccountType() == AccountType.FINE) {
+                memberAccountRepository.findByMemberIdAndAccountTypeAndSpecialLoanTypeForUpdate(
+                        originalTx.getMember().getId(),
+                        AccountType.TOTAL_PAID_FINE,
+                        null
+                ).ifPresent(totalPaidFineAcc -> {
+                    BigDecimal currentTotalPaidFine = totalPaidFineAcc.getCurrentBalance() != null ? totalPaidFineAcc.getCurrentBalance() : BigDecimal.ZERO;
+                    BigDecimal adjustedTotal = currentTotalPaidFine.subtract(originalTx.getAmount());
+                    totalPaidFineAcc.setCurrentBalance(adjustedTotal.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : adjustedTotal);
+                    memberAccountRepository.save(totalPaidFineAcc);
+                });
+            }
         } else {
             // Reversing an addition / loan issuance / interest calculation SUBTRACTS amount from balance
             if (originalTx.getAmount().compareTo(balanceBefore) > 0) {

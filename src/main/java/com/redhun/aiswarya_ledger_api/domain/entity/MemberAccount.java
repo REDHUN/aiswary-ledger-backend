@@ -35,6 +35,10 @@ public class MemberAccount {
     @Column(name = "current_balance", nullable = false, precision = 15, scale = 2)
     private BigDecimal currentBalance = BigDecimal.ZERO;
 
+    @Builder.Default
+    @Column(name = "order_number", nullable = false)
+    private Integer orderNumber = 0;
+
     @Version
     @Column(nullable = false)
     private Long version = 0L;
@@ -52,6 +56,26 @@ public class MemberAccount {
         if (currentBalance == null) {
             currentBalance = BigDecimal.ZERO;
         }
+        if (orderNumber == null || orderNumber == 0) {
+            orderNumber = getDefaultOrderNumber(accountType);
+        }
+    }
+
+    public static int getDefaultOrderNumber(AccountType type) {
+        if (type == null) return 99;
+        return switch (type) {
+            case DEPOSIT -> 1;
+            case LOAN -> 2;
+            case SPECIAL_LOAN -> 3;
+            case FINE -> 4;
+            case TOTAL_PAID_FINE -> 5;
+            case MONTHLY_CONTRIBUTION -> 6;
+            case FINANCIAL_AID -> 7;
+            case INTEREST -> 8;
+            case GROUP_PROFIT -> 9;
+            case GROUP_EXPENSE -> 10;
+            case SURPLUS_FUND -> 11;
+        };
     }
 
     @PreUpdate

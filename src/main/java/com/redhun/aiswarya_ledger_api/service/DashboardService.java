@@ -47,7 +47,7 @@ public class DashboardService {
             switch (acc.getAccountType()) {
                 case LOAN -> totalLoans = totalLoans.add(acc.getCurrentBalance());
                 case DEPOSIT -> totalDeposits = totalDeposits.add(acc.getCurrentBalance());
-                case FINE -> totalFines = totalFines.add(acc.getCurrentBalance());
+                case TOTAL_PAID_FINE -> totalFines = totalFines.add(acc.getCurrentBalance());
                 case FINANCIAL_AID -> totalAid = totalAid.add(acc.getCurrentBalance());
                 case MONTHLY_CONTRIBUTION -> totalContributions = totalContributions.add(acc.getCurrentBalance());
                 case INTEREST -> totalInterest = totalInterest.add(acc.getCurrentBalance());

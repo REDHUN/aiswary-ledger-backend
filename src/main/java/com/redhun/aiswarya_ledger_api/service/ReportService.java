@@ -188,6 +188,8 @@ public class ReportService {
         Map<Long, MeetingReportDto.MemberMeetingCollectionDto> memberMap = new HashMap<>();
 
         for (FinancialTransaction tx : txList) {
+
+
             BigDecimal amt = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
             Member m = tx.getMember();
             if (m == null) continue;
@@ -219,7 +221,7 @@ public class ReportService {
                 totalDeposits = totalDeposits.add(amt);
                 memberDto.setDepositAddition(memberDto.getDepositAddition().add(amt));
                 memberDto.setTotalMemberCollected(memberDto.getTotalMemberCollected().add(amt));
-            } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.ADDITION) {
+            } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.REPAYMENT) {
                 totalFines = totalFines.add(amt);
                 memberDto.setFinePayment(memberDto.getFinePayment().add(amt));
                 memberDto.setTotalMemberCollected(memberDto.getTotalMemberCollected().add(amt));

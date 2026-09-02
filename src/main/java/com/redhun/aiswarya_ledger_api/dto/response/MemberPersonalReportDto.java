@@ -19,11 +19,16 @@ public class MemberPersonalReportDto {
     private String yearMonth;
     private List<String> availableMonths;
 
+    private BigDecimal monthInterest;
+    private BigDecimal startMonthRemainingLoanBalance;
+    private BigDecimal monthEndRemainingLoanBalance;
+
     private BigDecimal totalDeposits;
     private BigDecimal totalLoanRepaid;
     private BigDecimal totalSpecialLoanRepaid;
     private BigDecimal currentLoanBalance;
     private BigDecimal currentDepositBalance;
+    private BigDecimal monthEndDepositBalance;
     private BigDecimal totalMonthlyContributions;
     private BigDecimal totalFinesPaid;
     private BigDecimal totalFinancialAidReceived;

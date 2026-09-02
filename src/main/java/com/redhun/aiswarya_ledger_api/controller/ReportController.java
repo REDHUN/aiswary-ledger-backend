@@ -1,9 +1,6 @@
 package com.redhun.aiswarya_ledger_api.controller;
 
-import com.redhun.aiswarya_ledger_api.dto.response.ApiResponse;
-import com.redhun.aiswarya_ledger_api.dto.response.FinancialReportDto;
-import com.redhun.aiswarya_ledger_api.dto.response.MemberBalanceReportDto;
-import com.redhun.aiswarya_ledger_api.dto.response.CategoryReportDto;
+import com.redhun.aiswarya_ledger_api.dto.response.*;
 import com.redhun.aiswarya_ledger_api.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -21,22 +18,8 @@ public class ReportController {
 
     private final ReportService reportService;
 
-    @GetMapping("/summary")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<FinancialReportDto>> getFinancialSummary() {
-        FinancialReportDto summary = reportService.getFinancialSummary();
-        return ResponseEntity.ok(ApiResponse.ok(summary));
-    }
 
-    @GetMapping("/period")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<FinancialReportDto>> getPeriodReport(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
-    ) {
-        FinancialReportDto periodReport = reportService.getPeriodReport(startDate, endDate);
-        return ResponseEntity.ok(ApiResponse.ok(periodReport));
-    }
+
 
     @GetMapping("/member-balances")
     @PreAuthorize("hasRole('ADMIN')")
@@ -73,4 +56,15 @@ public class ReportController {
         CategoryReportDto report = reportService.getCategoryReport();
         return ResponseEntity.ok(ApiResponse.ok(report, "Category report fetched successfully"));
     }
+
+    @GetMapping("/member/{memberId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<com.redhun.aiswarya_ledger_api.dto.response.MemberPersonalReportDto>> getMemberReport(
+            @PathVariable Long memberId,
+            @RequestParam(required = false) String yearMonth
+    ) {
+        com.redhun.aiswarya_ledger_api.dto.response.MemberPersonalReportDto report = reportService.getMemberPersonalReport(memberId, yearMonth);
+        return ResponseEntity.ok(ApiResponse.ok(report));
+    }
+
 }

@@ -28,85 +28,9 @@ public class ReportService {
     private final MeetingMemberRepository meetingMemberRepository;
     private final GroupExpenseRepository groupExpenseRepository;
     private final SystemSettingService systemSettingService;
+    private final InterestCalculationRepository interestCalculationRepository;
 
-    @Transactional(readOnly = true)
-    public FinancialReportDto getFinancialSummary() {
-        return getPeriodReport(null, null);
-    }
 
-    @Transactional(readOnly = true)
-    public FinancialReportDto getPeriodReport(LocalDate startDate, LocalDate endDate) {
-        long totalMembers = memberRepository.count();
-        long activeMembers = memberRepository.findByIsActiveTrue().size();
-
-        Map<AccountType, BigDecimal> accountTotals = memberAccountRepository.findAll().stream()
-                .collect(Collectors.groupingBy(
-                        MemberAccount::getAccountType,
-                        Collectors.reducing(BigDecimal.ZERO, MemberAccount::getCurrentBalance, BigDecimal::add)
-                ));
-
-        BigDecimal totalLoans = accountTotals.getOrDefault(AccountType.LOAN, BigDecimal.ZERO);
-        BigDecimal totalSpecialLoans = accountTotals.getOrDefault(AccountType.SPECIAL_LOAN, BigDecimal.ZERO);
-        BigDecimal totalDeposits = accountTotals.getOrDefault(AccountType.DEPOSIT, BigDecimal.ZERO);
-        BigDecimal totalFines = accountTotals.getOrDefault(AccountType.FINE, BigDecimal.ZERO);
-        BigDecimal totalFinancialAid = accountTotals.getOrDefault(AccountType.FINANCIAL_AID, BigDecimal.ZERO);
-        BigDecimal totalContributions = accountTotals.getOrDefault(AccountType.MONTHLY_CONTRIBUTION, BigDecimal.ZERO);
-        BigDecimal totalInterest = accountTotals.getOrDefault(AccountType.INTEREST, BigDecimal.ZERO);
-        BigDecimal surplus = systemSettingService.getSurplusAmount();
-
-        List<GroupExpense> allExpenses = groupExpenseRepository.findAll();
-        BigDecimal totalGroupExpenses = allExpenses.stream()
-                .map(GroupExpense::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Calculate period collections & disbursals from financial_transactions
-        List<FinancialTransaction> transactions = financialTransactionRepository.findAll();
-        if (startDate != null) {
-            ZonedDateTime startDateTime = startDate.atStartOfDay(ZoneId.systemDefault());
-            transactions = transactions.stream()
-                    .filter(t -> t.getCreatedAt().isAfter(startDateTime) || t.getCreatedAt().isEqual(startDateTime))
-                    .toList();
-        }
-
-        if (endDate != null) {
-            ZonedDateTime endDateTime = endDate.atTime(23, 59, 59).atZone(ZoneId.systemDefault());
-            transactions = transactions.stream()
-                    .filter(t -> t.getCreatedAt().isBefore(endDateTime) || t.getCreatedAt().isEqual(endDateTime))
-                    .toList();
-        }
-
-        BigDecimal periodCollections = BigDecimal.ZERO;
-        BigDecimal periodDisbursals = BigDecimal.ZERO;
-
-        for (FinancialTransaction tx : transactions) {
-            if (Boolean.TRUE.equals(tx.getIsReversed())) continue;
-
-            if (tx.getTransactionType() == TransactionType.REPAYMENT || tx.getTransactionType() == TransactionType.ADDITION) {
-                periodCollections = periodCollections.add(tx.getAmount());
-            } else if (tx.getTransactionType() == TransactionType.LOAN_ISSUED) {
-                periodDisbursals = periodDisbursals.add(tx.getAmount());
-            }
-        }
-
-        return FinancialReportDto.builder()
-                .totalMembers(totalMembers)
-                .activeMembers(activeMembers)
-                .totalOutstandingLoans(totalLoans)
-                .totalSpecialLoanBalance(totalSpecialLoans)
-                .totalDeposits(totalDeposits)
-                .totalOutstandingFines(totalFines)
-                .totalOutstandingFinancialAid(totalFinancialAid)
-                .totalMonthlyContributions(totalContributions)
-                .totalOutstandingInterest(totalInterest)
-                .totalGroupExpenses(totalGroupExpenses)
-                .surplusAmount(surplus)
-                .periodCollections(periodCollections)
-                .periodDisbursals(periodDisbursals)
-                .totalTransactionsCount(transactions.size())
-                .startDate(startDate)
-                .endDate(endDate)
-                .build();
-    }
 
     @Transactional(readOnly = true)
     public List<MemberBalanceReportDto> getMemberBalancesReport() {
@@ -452,15 +376,15 @@ public class ReportService {
             availableMonths.add(0, currentPeriod);
         }
 
-        if (yearMonth == null || yearMonth.isEmpty()) {
-            yearMonth = availableMonths.isEmpty() ? currentPeriod : availableMonths.get(0);
-        }
+        final String finalYearMonth = (yearMonth == null || yearMonth.isEmpty())
+                ? (availableMonths.isEmpty() ? currentPeriod : availableMonths.get(0))
+                : yearMonth;
 
         List<MemberAccount> accounts = memberAccountRepository.findByMemberId(memberId);
         Map<AccountType, BigDecimal> balances = accounts.stream()
                 .collect(Collectors.toMap(MemberAccount::getAccountType, MemberAccount::getCurrentBalance, (a, b) -> a));
 
-        List<Meeting> meetings = meetingRepository.findMeetingsInPeriodSorted(yearMonth);
+        List<Meeting> meetings = meetingRepository.findMeetingsInPeriodSorted(finalYearMonth);
         List<MemberPersonalReportDto.MemberMeetingPaymentEntryDto> meetingPayments = new ArrayList<>();
 
         BigDecimal totalPaidInPeriod = BigDecimal.ZERO;
@@ -472,9 +396,21 @@ public class ReportService {
         BigDecimal totalFinancialAidReceived = BigDecimal.ZERO;
 
         for (Meeting m : meetings) {
-            List<FinancialTransaction> txList = financialTransactionRepository.findByMeetingId(m.getId()).stream()
-                    .filter(t -> t.getMember() != null && t.getMember().getId().equals(memberId) && !Boolean.TRUE.equals(t.getIsReversed()) && !"MEETING_SURPLUS_TRANSFER".equals(t.getReferenceType()) && !"SURPLUS_FUND_ADDITION".equals(t.getReferenceType()) && !"OPENING_BALANCE".equals(t.getReferenceType()) && !"HISTORICAL_IMPORT".equals(t.getReferenceType()) && !"INITIAL_BALANCE".equals(t.getReferenceType()))
-                    .toList();
+            List<FinancialTransaction> txList =
+                    financialTransactionRepository.findByMeetingId(m.getId())
+                            .stream()
+                            .filter(t ->
+                                    t.getMember() != null
+                                            && t.getMember().getId().equals(memberId)
+                                            && !Boolean.TRUE.equals(t.getIsReversed())
+                                            && !"MEETING_SURPLUS_TRANSFER".equals(t.getReferenceType())
+                                            && !"SURPLUS_FUND_ADDITION".equals(t.getReferenceType())
+                                            && !"OPENING_BALANCE".equals(t.getReferenceType())
+                                            && !"HISTORICAL_IMPORT".equals(t.getReferenceType())
+                                            && !"INITIAL_BALANCE".equals(t.getReferenceType())
+                                            && t.getAccountType() != AccountType.SPECIAL_LOAN
+                            )
+                            .toList();
 
             BigDecimal lRep = BigDecimal.ZERO;
             BigDecimal slRep = BigDecimal.ZERO;
@@ -528,23 +464,146 @@ public class ReportService {
                     .build());
         }
 
+        // Interest for the month
+        Optional<InterestCalculation> optIc = interestCalculationRepository.findByMemberIdAndInterestPeriod(memberId, finalYearMonth);
+        BigDecimal monthInterest = optIc.map(InterestCalculation::getInterestAmount).orElse(BigDecimal.ZERO);
+
+        // Fetch non-reversed LOAN transactions in chronological order
+        List<FinancialTransaction> allLoanTxs = financialTransactionRepository
+                .findByMemberIdAndAccountTypeOrderByCreatedAtAscIdAsc(memberId, AccountType.LOAN)
+                .stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getIsReversed()))
+                .toList();
+
+        // If interest was recorded as transaction but not in repository
+        if (monthInterest.compareTo(BigDecimal.ZERO) == 0) {
+            monthInterest = allLoanTxs.stream()
+                    .filter(t -> finalYearMonth.equals(getTransactionPeriod(t)) && t.getTransactionType() == TransactionType.INTEREST_APPLIED)
+                    .map(FinancialTransaction::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        List<FinancialTransaction> loanTxsBefore = allLoanTxs.stream()
+                .filter(t -> getTransactionPeriod(t).compareTo(finalYearMonth) < 0)
+                .toList();
+
+        List<FinancialTransaction> loanTxsInPeriod = allLoanTxs.stream()
+                .filter(t -> getTransactionPeriod(t).equals(finalYearMonth))
+                .toList();
+
+        List<FinancialTransaction> loanTxsAfter = allLoanTxs.stream()
+                .filter(t -> getTransactionPeriod(t).compareTo(finalYearMonth) > 0)
+                .toList();
+
+        BigDecimal startMonthRemainingLoanBalance;
+        BigDecimal monthEndRemainingLoanBalance;
+
+        if (optIc.isPresent() && optIc.get().getLoanBalanceUsed() != null && optIc.get().getLoanBalanceUsed().compareTo(BigDecimal.ZERO) > 0) {
+            startMonthRemainingLoanBalance = optIc.get().getLoanBalanceUsed();
+        } else if (!loanTxsInPeriod.isEmpty()) {
+            FinancialTransaction firstTx = loanTxsInPeriod.get(0);
+            if ((firstTx.getBalanceBefore() == null || firstTx.getBalanceBefore().compareTo(BigDecimal.ZERO) == 0)
+                    && (firstTx.getTransactionType() == TransactionType.LOAN_ISSUED || firstTx.getTransactionType() == TransactionType.INITIAL_BALANCE)) {
+                startMonthRemainingLoanBalance = firstTx.getBalanceAfter();
+            } else {
+                startMonthRemainingLoanBalance = firstTx.getBalanceBefore();
+            }
+        } else if (!loanTxsBefore.isEmpty()) {
+            startMonthRemainingLoanBalance = loanTxsBefore.get(loanTxsBefore.size() - 1).getBalanceAfter();
+        } else if (!loanTxsAfter.isEmpty()) {
+            startMonthRemainingLoanBalance = loanTxsAfter.get(0).getBalanceBefore();
+        } else {
+            startMonthRemainingLoanBalance = balances.getOrDefault(AccountType.LOAN, BigDecimal.ZERO);
+        }
+
+        if (!loanTxsInPeriod.isEmpty()) {
+            monthEndRemainingLoanBalance = loanTxsInPeriod.get(loanTxsInPeriod.size() - 1).getBalanceAfter();
+        } else if (!loanTxsBefore.isEmpty()) {
+            monthEndRemainingLoanBalance = loanTxsBefore.get(loanTxsBefore.size() - 1).getBalanceAfter();
+        } else if (!loanTxsAfter.isEmpty()) {
+            monthEndRemainingLoanBalance = loanTxsAfter.get(0).getBalanceBefore();
+        } else {
+            monthEndRemainingLoanBalance = startMonthRemainingLoanBalance;
+        }
+
+        if (startMonthRemainingLoanBalance == null) {
+            startMonthRemainingLoanBalance = BigDecimal.ZERO;
+        }
+        if (monthEndRemainingLoanBalance == null) {
+            monthEndRemainingLoanBalance = BigDecimal.ZERO;
+        }
+
+        // Fetch non-reversed DEPOSIT transactions in chronological order
+        List<FinancialTransaction> allDepositTxs = financialTransactionRepository
+                .findByMemberIdAndAccountTypeOrderByCreatedAtAscIdAsc(memberId, AccountType.DEPOSIT)
+                .stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getIsReversed()))
+                .toList();
+
+        List<FinancialTransaction> depositTxsBefore = allDepositTxs.stream()
+                .filter(t -> getTransactionPeriod(t).compareTo(finalYearMonth) < 0)
+                .toList();
+
+        List<FinancialTransaction> depositTxsInPeriod = allDepositTxs.stream()
+                .filter(t -> getTransactionPeriod(t).equals(finalYearMonth))
+                .toList();
+
+        List<FinancialTransaction> depositTxsAfter = allDepositTxs.stream()
+                .filter(t -> getTransactionPeriod(t).compareTo(finalYearMonth) > 0)
+                .toList();
+
+        BigDecimal monthEndDepositBalance;
+        if (!depositTxsInPeriod.isEmpty()) {
+            monthEndDepositBalance = depositTxsInPeriod.get(depositTxsInPeriod.size() - 1).getBalanceAfter();
+        } else if (!depositTxsBefore.isEmpty()) {
+            monthEndDepositBalance = depositTxsBefore.get(depositTxsBefore.size() - 1).getBalanceAfter();
+        } else if (!depositTxsAfter.isEmpty()) {
+            monthEndDepositBalance = depositTxsAfter.get(0).getBalanceBefore();
+        } else {
+            monthEndDepositBalance = balances.getOrDefault(AccountType.DEPOSIT, BigDecimal.ZERO);
+        }
+
+        if (monthEndDepositBalance == null) {
+            monthEndDepositBalance = BigDecimal.ZERO;
+        }
+
         return MemberPersonalReportDto.builder()
                 .memberId(member.getId())
                 .memberNumber(member.getMemberNumber())
                 .fullName(member.getFullName())
-                .yearMonth(yearMonth)
+                .yearMonth(finalYearMonth)
                 .availableMonths(availableMonths)
+                .monthInterest(monthInterest)
+                .startMonthRemainingLoanBalance(startMonthRemainingLoanBalance)
+                .monthEndRemainingLoanBalance(monthEndRemainingLoanBalance)
                 .totalDeposits(totalDeposits)
                 .totalLoanRepaid(totalLoanRepaid)
                 .totalSpecialLoanRepaid(totalSpecialLoanRepaid)
                 .currentLoanBalance(balances.getOrDefault(AccountType.LOAN, BigDecimal.ZERO))
                 .currentDepositBalance(balances.getOrDefault(AccountType.DEPOSIT, BigDecimal.ZERO))
+                .monthEndDepositBalance(monthEndDepositBalance)
                 .totalMonthlyContributions(totalMonthlyContributions)
                 .totalFinesPaid(totalFinesPaid)
                 .totalFinancialAidReceived(totalFinancialAidReceived)
                 .totalPaidInPeriod(totalPaidInPeriod)
                 .meetingPayments(meetingPayments)
                 .build();
+    }
+
+    private String getTransactionPeriod(FinancialTransaction tx) {
+        if (tx.getMeeting() != null) {
+            if (tx.getMeeting().getInterestPeriod() != null) {
+                return tx.getMeeting().getInterestPeriod();
+            }
+            if (tx.getMeeting().getMeetingDate() != null) {
+                return tx.getMeeting().getMeetingDate().toString().substring(0, 7);
+            }
+        }
+        if (tx.getCreatedAt() != null) {
+            return tx.getCreatedAt().toLocalDate().toString().substring(0, 7);
+        }
+        return LocalDate.now().toString().substring(0, 7);
     }
 
     @Transactional(readOnly = true)

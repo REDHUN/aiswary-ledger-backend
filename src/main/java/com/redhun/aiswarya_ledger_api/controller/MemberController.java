@@ -95,6 +95,16 @@ public class MemberController {
         return ResponseEntity.ok(ApiResponse.ok(report));
     }
 
+    @GetMapping("/{id}/report")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.memberId")
+    public ResponseEntity<ApiResponse<com.redhun.aiswarya_ledger_api.dto.response.MemberPersonalReportDto>> getMemberPersonalReport(
+            @PathVariable Long id,
+            @RequestParam(required = false) String yearMonth
+    ) {
+        com.redhun.aiswarya_ledger_api.dto.response.MemberPersonalReportDto report = reportService.getMemberPersonalReport(id, yearMonth);
+        return ResponseEntity.ok(ApiResponse.ok(report));
+    }
+
     @GetMapping("/{id}/accounts")
     @PreAuthorize("hasRole('ADMIN') or #id == principal.memberId")
     public ResponseEntity<ApiResponse<List<MemberAccountDto>>> getMemberAccounts(@PathVariable Long id) {

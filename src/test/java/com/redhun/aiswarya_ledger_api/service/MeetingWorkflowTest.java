@@ -376,12 +376,11 @@ public class MeetingWorkflowTest {
 
     @Test
     public void testFinancialReportsGeneration() {
-        var summary = reportService.getFinancialSummary();
-        assertNotNull(summary);
-        assertTrue(summary.getTotalMembers() >= 0);
+        var categoryReport = reportService.getCategoryReport();
+        assertNotNull(categoryReport);
 
-        var periodReport = reportService.getPeriodReport(java.time.LocalDate.now().minusDays(30), java.time.LocalDate.now());
-        assertNotNull(periodReport);
+        var monthlyReport = reportService.getMonthlyLedgerReport(java.time.LocalDate.now().toString().substring(0, 7));
+        assertNotNull(monthlyReport);
 
         var memberBalances = reportService.getMemberBalancesReport();
         assertNotNull(memberBalances);
@@ -472,6 +471,9 @@ public class MeetingWorkflowTest {
             assertNotNull(report);
             assertEquals(member.getMemberNumber(), report.getMemberNumber());
             assertNotNull(report.getMeetingPayments());
+            assertNotNull(report.getMonthInterest());
+            assertNotNull(report.getStartMonthRemainingLoanBalance());
+            assertNotNull(report.getMonthEndRemainingLoanBalance());
         }
     }
 }

@@ -23,6 +23,8 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
 
     List<FinancialTransaction> findByMemberIdAndAccountTypeOrderByCreatedAtDescIdDesc(Long memberId, AccountType accountType);
 
+    List<FinancialTransaction> findByMemberIdAndAccountTypeOrderByCreatedAtAscIdAsc(Long memberId, AccountType accountType);
+
     List<FinancialTransaction> findByMeetingId(Long meetingId);
 
     List<FinancialTransaction> findTop5ByOrderByCreatedAtDescIdDesc();

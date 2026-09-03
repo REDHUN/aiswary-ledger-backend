@@ -408,7 +408,7 @@ public class ReportService {
                                             && !"OPENING_BALANCE".equals(t.getReferenceType())
                                             && !"HISTORICAL_IMPORT".equals(t.getReferenceType())
                                             && !"INITIAL_BALANCE".equals(t.getReferenceType())
-                                            && t.getAccountType() != AccountType.SPECIAL_LOAN
+
                             )
                             .toList();
 
@@ -434,7 +434,7 @@ public class ReportService {
                 } else if (tx.getAccountType() == AccountType.DEPOSIT && (tx.getTransactionType() == TransactionType.ADDITION || tx.getTransactionType() == TransactionType.INITIAL_BALANCE)) {
                     dep = dep.add(amt);
                     totalDeposits = totalDeposits.add(amt);
-                } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.ADDITION) {
+                } else if (tx.getAccountType() == AccountType.FINE && tx.getTransactionType() == TransactionType.REPAYMENT) {
                     fine = fine.add(amt);
                     totalFinesPaid = totalFinesPaid.add(amt);
                 } else if (tx.getAccountType() == AccountType.MONTHLY_CONTRIBUTION && tx.getTransactionType() == TransactionType.ADDITION) {

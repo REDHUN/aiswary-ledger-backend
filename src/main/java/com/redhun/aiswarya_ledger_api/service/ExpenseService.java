@@ -117,7 +117,7 @@ public class ExpenseService {
 
         // Log Financial Transaction directly on Surplus Reserve
         Member operatorMember = memberRepository.findByUserId(operator != null ? operator.getId() : null)
-                .orElseGet(() -> memberRepository.findByIsActiveTrue().stream().findFirst().orElse(null));
+                .orElseGet(() -> memberRepository.findByIsActiveTrueOrderByIdAsc().stream().findFirst().orElse(null));
 
         if (operatorMember != null) {
             String desc = "Group Expense: " + type.getName() + (request.getDescription() != null && !request.getDescription().isBlank() ? " (" + request.getDescription() + ")" : "");

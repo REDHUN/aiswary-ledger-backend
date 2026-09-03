@@ -82,7 +82,7 @@ public class GroupProfitService {
 
         // Log Financial Transaction on Surplus Reserve Fund
         Member operatorMember = memberRepository.findByUserId(operator != null ? operator.getId() : null)
-                .orElseGet(() -> memberRepository.findByIsActiveTrue().stream().findFirst().orElse(null));
+                .orElseGet(() -> memberRepository.findByIsActiveTrueOrderByIdAsc().stream().findFirst().orElse(null));
 
         if (operatorMember != null) {
             String desc = "Group Profit: " + request.getTitle().trim() + (request.getDescription() != null && !request.getDescription().isBlank() ? " (" + request.getDescription() + ")" : "");

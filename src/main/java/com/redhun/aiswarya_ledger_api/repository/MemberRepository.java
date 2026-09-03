@@ -11,7 +11,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByMemberNumber(String memberNumber);
     Optional<Member> findByPhone(String phone);
     Optional<Member> findByUserId(Long userId);
-    List<Member> findByIsActiveTrue();
+    List<Member> findByIsActiveTrueOrderByIdAsc();
     Page<Member> findByIsActiveTrue(Pageable pageable);
     boolean existsByMemberNumber(String memberNumber);
     boolean existsByPhone(String phone);

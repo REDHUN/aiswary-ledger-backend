@@ -113,7 +113,7 @@ public class MeetingService {
         meeting = meetingRepository.save(meeting);
 
         // Snapshot all active members into meeting_members with PENDING status
-        List<Member> activeMembers = memberRepository.findByIsActiveTrue();
+        List<Member> activeMembers = memberRepository.findByIsActiveTrueOrderByIdAsc();
         for (Member member : activeMembers) {
             if (meetingMemberRepository.findByMeetingIdAndMemberId(meeting.getId(), member.getId()).isEmpty()) {
                 MeetingMember mm = MeetingMember.builder()
@@ -519,7 +519,7 @@ public class MeetingService {
         long pendingMembers;
 
         if (totalMembers == 0 && meeting.getStatus() == MeetingStatus.SCHEDULED) {
-            long activeCount = memberRepository.findByIsActiveTrue().size();
+            long activeCount = memberRepository.findByIsActiveTrueOrderByIdAsc().size();
             totalMembers = activeCount;
             processedMembers = 0;
             pendingMembers = activeCount;

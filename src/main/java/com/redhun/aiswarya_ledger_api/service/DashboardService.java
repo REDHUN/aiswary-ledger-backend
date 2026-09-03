@@ -70,7 +70,7 @@ public class DashboardService {
 
         String currentPeriod = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
         long calculatedMembersCount = interestRepository.countByInterestPeriod(currentPeriod);
-        long totalActiveMembers = memberRepository.findByIsActiveTrue().size();
+        long totalActiveMembers = memberRepository.findByIsActiveTrueOrderByIdAsc().size();
         long pendingMembersCount = Math.max(0, totalActiveMembers - calculatedMembersCount);
 
         CompletedMeetingRegisterDto lastRegister = meetingService.getCompletedMeetingRegister(null);

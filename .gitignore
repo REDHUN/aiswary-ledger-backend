@@ -32,3 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 .env
+
+# Firebase & Secret Service Account Keys
+*firebase*.json
+*service-account*.json
+firebase-service-account.json
+

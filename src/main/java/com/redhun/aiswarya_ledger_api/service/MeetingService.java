@@ -55,6 +55,7 @@ public class MeetingService {
     private final GroupProfitRepository groupProfitRepository;
     private final GroupProfitService groupProfitService;
     private final InterestCalculationRepository interestCalculationRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public MeetingDto scheduleMeeting(ScheduleMeetingRequest request, User operator) {
@@ -158,6 +159,9 @@ public class MeetingService {
 
         // Automatically schedule next Sunday meeting
         scheduleNextSundayMeeting(meeting.getMeetingDate(), meeting.getCreatedBy());
+
+        // Send push notification to all users via FCM
+        notificationService.sendMeetingCompletedNotification(meeting);
 
         return mapToDto(meeting);
     }

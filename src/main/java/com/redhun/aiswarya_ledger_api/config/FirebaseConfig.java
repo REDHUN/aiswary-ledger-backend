@@ -1,6 +1,7 @@
 package com.redhun.aiswarya_ledger_api.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -23,6 +24,9 @@ public class FirebaseConfig {
 
     @Value("${firebase.credentials.path:}")
     private String credentialsPath;
+
+    @Value("${firebase.project-id:aiswarya-ledger}")
+    private String projectId;
 
     @Bean
     public FirebaseApp firebaseApp() {
@@ -77,12 +81,33 @@ public class FirebaseConfig {
                     log.warn("Firebase credentials not configured or found. Firebase push notifications will be inactive. Error: {}", e.getMessage());
                     return null;
                 }
+                if (credentials.createScopedRequired()) {
+                    credentials = credentials.createScoped(java.util.List.of(
+                            "https://www.googleapis.com/auth/firebase.messaging",
+                            "https://www.googleapis.com/auth/cloud-platform"
+                    ));
+                }
             }
 
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(credentials)
-                    .build();
+            // Determine effective project ID
+            String effectiveProjectId = null;
+            if (credentials instanceof ServiceAccountCredentials sac) {
+                effectiveProjectId = sac.getProjectId();
+            }
+            if (effectiveProjectId == null || effectiveProjectId.isBlank()) {
+                if (projectId != null && !projectId.isBlank()) {
+                    effectiveProjectId = projectId.trim();
+                }
+            }
 
+            FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
+                    .setCredentials(credentials);
+
+            if (effectiveProjectId != null && !effectiveProjectId.isBlank()) {
+                optionsBuilder.setProjectId(effectiveProjectId);
+            }
+
+            FirebaseOptions options = optionsBuilder.build();
             FirebaseApp app = FirebaseApp.initializeApp(options);
             log.info("FirebaseApp initialized successfully for project: {}", options.getProjectId());
             return app;

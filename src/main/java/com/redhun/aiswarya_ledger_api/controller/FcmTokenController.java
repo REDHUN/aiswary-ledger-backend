@@ -51,4 +51,18 @@ public class FcmTokenController {
         List<FcmTokenDto> tokens = fcmTokenService.getTokensByUserId(currentUser.getId());
         return ResponseEntity.ok(ApiResponse.ok(tokens));
     }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<FcmTokenDto>>> getAllTokens() {
+        List<FcmTokenDto> tokens = fcmTokenService.getAllTokens();
+        return ResponseEntity.ok(ApiResponse.ok(tokens));
+    }
+
+    @DeleteMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> clearAllTokens() {
+        fcmTokenService.clearAllTokens();
+        return ResponseEntity.ok(ApiResponse.ok(null, "All FCM tokens cleared successfully"));
+    }
 }

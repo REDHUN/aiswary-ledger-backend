@@ -62,6 +62,19 @@ public class FcmTokenService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<FcmTokenDto> getAllTokens() {
+        return fcmTokenRepository.findAll().stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    @Transactional
+    public void clearAllTokens() {
+        log.info("Clearing all FCM tokens from database");
+        fcmTokenRepository.deleteAll();
+    }
+
     private FcmTokenDto mapToDto(FcmToken token) {
         return FcmTokenDto.builder()
                 .id(token.getId())

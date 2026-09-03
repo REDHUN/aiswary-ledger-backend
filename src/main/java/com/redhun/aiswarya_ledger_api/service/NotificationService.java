@@ -1,8 +1,22 @@
 package com.redhun.aiswarya_ledger_api.service;
 
-import com.google.firebase.messaging.*;
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
+import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.ApnsConfig;
+import com.google.firebase.messaging.BatchResponse;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.MulticastMessage;
+import com.google.firebase.messaging.Notification;
+import com.google.firebase.messaging.SendResponse;
 import com.redhun.aiswarya_ledger_api.domain.entity.FcmToken;
 import com.redhun.aiswarya_ledger_api.domain.entity.Meeting;
+import com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest;
+import com.redhun.aiswarya_ledger_api.dto.response.NotificationTestResponse;
 import com.redhun.aiswarya_ledger_api.repository.FcmTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +25,14 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -19,147 +40,830 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NotificationService {
 
+    /**
+     * Firebase allows a maximum of 500 registration tokens
+     * in one multicast request.
+     */
+    private static final int FCM_MAX_TOKENS_PER_REQUEST = 500;
+
     private final FcmTokenRepository fcmTokenRepository;
 
     @Autowired(required = false)
     private FirebaseMessaging firebaseMessaging;
 
+
+    // ============================================================
+    // MEETING COMPLETED NOTIFICATION
+    // ============================================================
+
     /**
-     * Send meeting completed notification to all user devices with registered FCM tokens.
+     * Sends meeting completed notification to all registered
+     * user devices.
      */
     @Async
     public void sendMeetingCompletedNotification(Meeting meeting) {
+
         if (meeting == null) {
             log.warn("Cannot send meeting completed notification: meeting is null");
             return;
         }
 
-        List<FcmToken> fcmTokens = fcmTokenRepository.findAll();
-        if (fcmTokens.isEmpty()) {
-            log.info("No FCM tokens found in database. Skipping notification for Meeting #{}", meeting.getMeetingNumber());
+        if (firebaseMessaging == null) {
+            log.warn(
+                    "FirebaseMessaging is not initialized. " +
+                            "Meeting completed notification was not sent."
+            );
             return;
         }
 
-        List<String> tokenStrings = fcmTokens.stream()
-                .map(FcmToken::getFcmToken)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(t -> !t.isEmpty())
-                .distinct()
-                .collect(Collectors.toList());
+        List<String> tokens = getAllTokens();
 
-        if (tokenStrings.isEmpty()) {
-            log.info("No valid non-empty FCM tokens found. Skipping notification for Meeting #{}", meeting.getMeetingNumber());
+        if (tokens.isEmpty()) {
+            log.info(
+                    "No FCM tokens found in database. " +
+                            "Skipping notification for Meeting #{}",
+                    meeting.getMeetingNumber()
+            );
             return;
         }
 
         String title = "യോഗം പൂർത്തിയായി (Meeting Completed)";
-        String body = String.format("മീറ്റിംഗ് #%d (%s) പൂർത്തിയായി. Meeting #%d has been completed.",
+
+        String body = String.format(
+                "മീറ്റിംഗ് #%d (%s) പൂർത്തിയായി. " +
+                        "Meeting #%d has been completed.",
                 meeting.getMeetingNumber(),
-                meeting.getMeetingDate() != null ? meeting.getMeetingDate().toString() : "",
+                meeting.getMeetingDate() != null
+                        ? meeting.getMeetingDate().toString()
+                        : "",
                 meeting.getMeetingNumber()
         );
 
         Map<String, String> data = new HashMap<>();
+
         data.put("type", "MEETING_COMPLETED");
         data.put("meetingId", String.valueOf(meeting.getId()));
-        data.put("meetingNumber", String.valueOf(meeting.getMeetingNumber()));
+        data.put(
+                "meetingNumber",
+                String.valueOf(meeting.getMeetingNumber())
+        );
+
         if (meeting.getMeetingDate() != null) {
-            data.put("meetingDate", meeting.getMeetingDate().toString());
+            data.put(
+                    "meetingDate",
+                    meeting.getMeetingDate().toString()
+            );
         }
+
         if (meeting.getStatus() != null) {
-            data.put("status", meeting.getStatus().name());
+            data.put(
+                    "status",
+                    meeting.getStatus().name()
+            );
         }
 
-        log.info("Sending meeting completed push notification for Meeting #{} to {} token(s)",
-                meeting.getMeetingNumber(), tokenStrings.size());
+        log.info(
+                "Sending meeting completed notification for Meeting #{} " +
+                        "to {} device(s)",
+                meeting.getMeetingNumber(),
+                tokens.size()
+        );
 
-        sendMulticastNotification(tokenStrings, title, body, data);
+        sendMulticastNotification(
+                tokens,
+                title,
+                body,
+                data
+        );
     }
+
+
+    // ============================================================
+    // TEST NOTIFICATION
+    // ============================================================
 
     /**
-     * Sends multicast push notifications in batches of 500 (FCM limit) and handles obsolete token cleanup.
+     * Sends a test notification.
+     *
+     * Target priority:
+     *
+     * 1. Explicit FCM token
+     * 2. User ID
+     * 3. Broadcast
+     * 4. fallbackUserId
+     * 5. All tokens
      */
-    public void sendMulticastNotification(List<String> tokens, String title, String body, Map<String, String> data) {
+    public NotificationTestResponse sendTestNotification(
+            SendTestNotificationRequest request,
+            Long fallbackUserId
+    ) {
+
         if (firebaseMessaging == null) {
-            log.warn("FirebaseMessaging is not initialized. Notification '{}' not sent to {} token(s)", title, tokens.size());
-            return;
+
+            log.warn(
+                    "Cannot send test notification: " +
+                            "FirebaseMessaging is not initialized."
+            );
+
+            return NotificationTestResponse.builder()
+                    .totalTargeted(0)
+                    .successCount(0)
+                    .failureCount(0)
+                    .status("FIREBASE_NOT_CONFIGURED")
+                    .message(
+                            "Firebase messaging is not " +
+                                    "configured/initialized on the server."
+                    )
+                    .build();
         }
+
+        // --------------------------------------------------------
+        // Resolve target tokens
+        // --------------------------------------------------------
+
+        List<String> targetTokens = resolveTargetTokens(
+                request,
+                fallbackUserId
+        );
+
+        if (targetTokens.isEmpty()) {
+
+            return NotificationTestResponse.builder()
+                    .totalTargeted(0)
+                    .successCount(0)
+                    .failureCount(0)
+                    .status("NO_TOKENS_FOUND")
+                    .message(
+                            "No FCM tokens found for the specified target."
+                    )
+                    .build();
+        }
+
+        // --------------------------------------------------------
+        // Notification title
+        // --------------------------------------------------------
+
+        String title =
+                request != null
+                        && request.getTitle() != null
+                        && !request.getTitle().trim().isEmpty()
+                        ? request.getTitle().trim()
+                        : "Aiswarya Ledger - Test Notification";
+
+        // --------------------------------------------------------
+        // Notification body
+        // --------------------------------------------------------
+
+        String formattedTime =
+                ZonedDateTime.now()
+                        .format(
+                                DateTimeFormatter.ofPattern(
+                                        "hh:mm a, dd MMM yyyy"
+                                )
+                        );
+
+        String body =
+                request != null
+                        && request.getBody() != null
+                        && !request.getBody().trim().isEmpty()
+                        ? request.getBody().trim()
+                        : "This is a test notification from " +
+                        "Aiswarya Ledger sent at " +
+                        formattedTime;
+
+        // --------------------------------------------------------
+        // Notification data
+        // --------------------------------------------------------
+
+        Map<String, String> data = new HashMap<>();
+
+        data.put(
+                "type",
+                "TEST_NOTIFICATION"
+        );
+
+        data.put(
+                "sentAt",
+                ZonedDateTime.now().toString()
+        );
+
+        if (request != null && request.getData() != null) {
+            data.putAll(request.getData());
+        }
+
+        log.info(
+                "Sending test FCM notification to {} token(s). " +
+                        "Title='{}'",
+                targetTokens.size(),
+                title
+        );
+
+        // --------------------------------------------------------
+        // Send
+        // --------------------------------------------------------
+
+        NotificationSendResult result =
+                sendMulticastNotificationWithResult(
+                        targetTokens,
+                        title,
+                        body,
+                        data
+                );
+
+        String status;
+
+        if (result.successCount() > 0
+                && result.failureCount() == 0) {
+
+            status = "SUCCESS";
+
+        } else if (result.successCount() > 0) {
+
+            status = "PARTIAL_SUCCESS";
+
+        } else if (result.failureCount() > 0) {
+
+            status = "FAILED";
+
+        } else {
+
+            status = "COMPLETED";
+        }
+
+        String message;
+
+        if (result.successCount() > 0
+                && result.failureCount() > 0) {
+
+            message = String.format(
+                    "Notification delivered to %d device(s). " +
+                            "%d token(s) failed. Invalid/unregistered tokens " +
+                            "were cleaned up.",
+                    result.successCount(),
+                    result.failureCount()
+            );
+
+        } else if (result.successCount() > 0) {
+
+            message = String.format(
+                    "Notification delivered successfully to %d device(s).",
+                    result.successCount()
+            );
+
+        } else {
+
+            message = String.format(
+                    "Delivery failed for %d target token(s).",
+                    result.failureCount()
+            );
+        }
+
+        return NotificationTestResponse.builder()
+                .totalTargeted(targetTokens.size())
+                .successCount(result.successCount())
+                .failureCount(result.failureCount())
+                .status(status)
+                .message(message)
+                .errors(
+                        result.errors().isEmpty()
+                                ? null
+                                : result.errors()
+                )
+                .build();
+    }
+
+
+    // ============================================================
+    // RESOLVE TARGET TOKENS
+    // ============================================================
+
+    private List<String> resolveTargetTokens(
+            SendTestNotificationRequest request,
+            Long fallbackUserId
+    ) {
+
+        List<String> targetTokens = new ArrayList<>();
+
+        if (request != null
+                && request.getFcmToken() != null
+                && !request.getFcmToken().trim().isEmpty()) {
+
+            targetTokens.add(
+                    request.getFcmToken().trim()
+            );
+
+        } else if (request != null
+                && request.getUserId() != null) {
+
+            List<FcmToken> userTokens =
+                    fcmTokenRepository.findByUserId(
+                            request.getUserId()
+                    );
+
+            targetTokens.addAll(
+                    userTokens.stream()
+                            .map(FcmToken::getFcmToken)
+                            .filter(Objects::nonNull)
+                            .toList()
+            );
+
+        } else if (request != null
+                && Boolean.TRUE.equals(request.getBroadcast())) {
+
+            targetTokens.addAll(
+                    getAllTokens()
+            );
+
+        } else if (fallbackUserId != null) {
+
+            List<FcmToken> userTokens =
+                    fcmTokenRepository.findByUserId(
+                            fallbackUserId
+                    );
+
+            targetTokens.addAll(
+                    userTokens.stream()
+                            .map(FcmToken::getFcmToken)
+                            .filter(Objects::nonNull)
+                            .toList()
+            );
+
+        } else {
+
+            targetTokens.addAll(
+                    getAllTokens()
+            );
+        }
+
+        return cleanTokens(targetTokens);
+    }
+
+
+    // ============================================================
+    // GET ALL TOKENS
+    // ============================================================
+
+    private List<String> getAllTokens() {
+
+        List<FcmToken> allTokens =
+                fcmTokenRepository.findAll();
+
+        return cleanTokens(
+                allTokens.stream()
+                        .map(FcmToken::getFcmToken)
+                        .filter(Objects::nonNull)
+                        .toList()
+        );
+    }
+
+
+    // ============================================================
+    // CLEAN TOKEN LIST
+    // ============================================================
+
+    private List<String> cleanTokens(List<String> tokens) {
 
         if (tokens == null || tokens.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return tokens.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(token -> !token.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+
+    // ============================================================
+    // MULTICAST NOTIFICATION
+    // ============================================================
+
+    /**
+     * Sends a notification to multiple FCM tokens.
+     *
+     * Firebase supports a maximum of 500 tokens per request,
+     * therefore this method automatically splits larger lists.
+     */
+    public void sendMulticastNotification(
+            List<String> tokens,
+            String title,
+            String body,
+            Map<String, String> data
+    ) {
+
+        NotificationSendResult result =
+                sendMulticastNotificationWithResult(
+                        tokens,
+                        title,
+                        body,
+                        data
+                );
+
+        log.info(
+                "FCM notification finished. " +
+                        "Success: {}, Failed: {}, Total: {}",
+                result.successCount(),
+                result.failureCount(),
+                result.totalTargeted()
+        );
+    }
+
+
+    // ============================================================
+    // MULTICAST WITH RESULT
+    // ============================================================
+
+    private NotificationSendResult sendMulticastNotificationWithResult(
+            List<String> tokens,
+            String title,
+            String body,
+            Map<String, String> data
+    ) {
+
+        if (firebaseMessaging == null) {
+
+            log.warn(
+                    "FirebaseMessaging is not initialized. " +
+                            "Notification '{}' was not sent.",
+                    title
+            );
+
+            return new NotificationSendResult(
+                    0,
+                    0,
+                    0,
+                    Collections.emptyList()
+            );
+        }
+
+        List<String> distinctTokens =
+                cleanTokens(tokens);
+
+        if (distinctTokens.isEmpty()) {
+
+            log.info(
+                    "No valid FCM tokens available."
+            );
+
+            return new NotificationSendResult(
+                    0,
+                    0,
+                    0,
+                    Collections.emptyList()
+            );
+        }
+
+        int totalSuccess = 0;
+        int totalFailure = 0;
+
+        List<String> errors = new ArrayList<>();
+        List<String> staleTokens = new ArrayList<>();
+
+        // --------------------------------------------------------
+        // Split into batches of maximum 500 tokens
+        // --------------------------------------------------------
+
+        for (
+                int start = 0;
+                start < distinctTokens.size();
+                start += FCM_MAX_TOKENS_PER_REQUEST
+        ) {
+
+            int end = Math.min(
+                    start + FCM_MAX_TOKENS_PER_REQUEST,
+                    distinctTokens.size()
+            );
+
+            List<String> batchTokens =
+                    distinctTokens.subList(start, end);
+
+            log.info(
+                    "Sending FCM batch. Tokens {} - {} of {}",
+                    start + 1,
+                    end,
+                    distinctTokens.size()
+            );
+
+            try {
+
+                MulticastMessage message =
+                        buildMulticastMessage(
+                                batchTokens,
+                                title,
+                                body,
+                                data
+                        );
+
+                BatchResponse response =
+                        firebaseMessaging.sendEachForMulticast(
+                                message
+                        );
+
+                totalSuccess +=
+                        response.getSuccessCount();
+
+                totalFailure +=
+                        response.getFailureCount();
+
+                // ------------------------------------------------
+                // Process individual responses
+                // ------------------------------------------------
+
+                List<SendResponse> responses =
+                        response.getResponses();
+
+                for (int i = 0; i < responses.size(); i++) {
+
+                    SendResponse sendResponse =
+                            responses.get(i);
+
+                    String token =
+                            batchTokens.get(i);
+
+                    if (sendResponse.isSuccessful()) {
+
+                        log.debug(
+                                "FCM notification sent successfully. " +
+                                        "Token={}, MessageId={}",
+                                preview(token),
+                                sendResponse.getMessageId()
+                        );
+
+                        continue;
+                    }
+
+                    // ------------------------------------------------
+                    // Failed response
+                    // ------------------------------------------------
+
+                    FirebaseMessagingException exception =
+                            sendResponse.getException();
+
+                    MessagingErrorCode errorCode =
+                            exception != null
+                                    ? exception.getMessagingErrorCode()
+                                    : null;
+
+                    String errorMessage =
+                            exception != null
+                                    ? exception.getMessage()
+                                    : "Unknown FCM error";
+
+                    log.warn(
+                            "FCM notification failed. " +
+                                    "Token={}, ErrorCode={}, Message={}",
+                            preview(token),
+                            errorCode,
+                            errorMessage
+                    );
+
+                    errors.add(
+                            "Token "
+                                    + preview(token)
+                                    + " failed: "
+                                    + errorCode
+                                    + " - "
+                                    + errorMessage
+                    );
+
+                    // ------------------------------------------------
+                    // IMPORTANT:
+                    // Only remove confirmed UNREGISTERED tokens.
+                    // ------------------------------------------------
+
+                    if (
+                            errorCode ==
+                                    MessagingErrorCode.UNREGISTERED
+                    ) {
+
+                        staleTokens.add(token);
+                    }
+                }
+
+            } catch (FirebaseMessagingException ex) {
+
+                /*
+                 * This means the entire multicast request failed,
+                 * rather than necessarily meaning individual tokens
+                 * are invalid.
+                 */
+
+                log.error(
+                        "FCM multicast request failed. " +
+                                "ErrorCode={}, Message={}",
+                        ex.getMessagingErrorCode(),
+                        ex.getMessage(),
+                        ex
+                );
+
+                errors.add(
+                        "FCM multicast request failed: "
+                                + ex.getMessagingErrorCode()
+                                + " - "
+                                + ex.getMessage()
+                );
+
+                totalFailure += batchTokens.size();
+
+            } catch (Exception ex) {
+
+                /*
+                 * Do NOT delete tokens here.
+                 *
+                 * An unexpected exception does not prove that
+                 * a token is stale.
+                 */
+
+                log.error(
+                        "Unexpected error while sending FCM batch. " +
+                                "BatchSize={}, Error={}",
+                        batchTokens.size(),
+                        ex.getMessage(),
+                        ex
+                );
+
+                errors.add(
+                        "Unexpected FCM error for batch of "
+                                + batchTokens.size()
+                                + " token(s): "
+                                + ex.getMessage()
+                );
+
+                totalFailure += batchTokens.size();
+            }
+        }
+
+        // --------------------------------------------------------
+        // Remove confirmed stale tokens
+        // --------------------------------------------------------
+
+        if (!staleTokens.isEmpty()) {
+
+            /*
+             * Remove duplicates before database cleanup.
+             */
+
+            List<String> uniqueStaleTokens =
+                    staleTokens.stream()
+                            .distinct()
+                            .toList();
+
+            log.info(
+                    "Cleaning up {} unregistered FCM token(s).",
+                    uniqueStaleTokens.size()
+            );
+
+            cleanUpStaleTokens(
+                    uniqueStaleTokens
+            );
+        }
+
+        return new NotificationSendResult(
+                distinctTokens.size(),
+                totalSuccess,
+                totalFailure,
+                errors
+        );
+    }
+
+
+    // ============================================================
+    // BUILD MULTICAST MESSAGE
+    // ============================================================
+
+    private MulticastMessage buildMulticastMessage(
+            List<String> tokens,
+            String title,
+            String body,
+            Map<String, String> data
+    ) {
+
+        Notification notification =
+                Notification.builder()
+                        .setTitle(title)
+                        .setBody(body)
+                        .build();
+
+        AndroidNotification androidNotification =
+                AndroidNotification.builder()
+                        .setSound("default")
+                        .setChannelId(
+                                "meeting_notifications"
+                        )
+                        .build();
+
+        AndroidConfig androidConfig =
+                AndroidConfig.builder()
+                        .setPriority(
+                                AndroidConfig.Priority.HIGH
+                        )
+                        .setNotification(
+                                androidNotification
+                        )
+                        .build();
+
+        ApnsConfig apnsConfig =
+                ApnsConfig.builder()
+                        .setAps(
+                                Aps.builder()
+                                        .setSound("default")
+                                        .build()
+                        )
+                        .build();
+
+        return MulticastMessage.builder()
+                .addAllTokens(tokens)
+                .setNotification(notification)
+                .setAndroidConfig(androidConfig)
+                .setApnsConfig(apnsConfig)
+                .putAllData(
+                        data != null
+                                ? data
+                                : Collections.emptyMap()
+                )
+                .build();
+    }
+
+
+    // ============================================================
+    // CLEANUP STALE TOKENS
+    // ============================================================
+
+    @Transactional
+    public void cleanUpStaleTokens(
+            List<String> staleTokens
+    ) {
+
+        if (staleTokens == null
+                || staleTokens.isEmpty()) {
+
             return;
         }
 
-        final int BATCH_SIZE = 500;
-        int totalTokens = tokens.size();
+        log.info(
+                "Cleaning up {} unregistered FCM token(s) " +
+                        "from database.",
+                staleTokens.size()
+        );
 
-        for (int i = 0; i < totalTokens; i += BATCH_SIZE) {
-            List<String> batch = tokens.subList(i, Math.min(i + BATCH_SIZE, totalTokens));
+        for (String token : staleTokens) {
+
+            if (token == null
+                    || token.trim().isEmpty()) {
+
+                continue;
+            }
+
             try {
-                MulticastMessage.Builder messageBuilder = MulticastMessage.builder()
-                        .setNotification(Notification.builder()
-                                .setTitle(title)
-                                .setBody(body)
-                                .build())
-                        .setAndroidConfig(AndroidConfig.builder()
-                                .setPriority(AndroidConfig.Priority.HIGH)
-                                .setNotification(AndroidNotification.builder()
-                                        .setSound("default")
-                                        .setChannelId("meeting_notifications")
-                                        .build())
-                                .build())
-                        .setApnsConfig(ApnsConfig.builder()
-                                .setAps(Aps.builder()
-                                        .setSound("default")
-                                        .build())
-                                .build())
-                        .addAllTokens(batch);
 
-                if (data != null && !data.isEmpty()) {
-                    messageBuilder.putAllData(data);
-                }
+                fcmTokenRepository.deleteByFcmToken(
+                        token
+                );
 
-                MulticastMessage message = messageBuilder.build();
-                BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+                log.info(
+                        "Deleted stale FCM token {}",
+                        preview(token)
+                );
 
-                log.info("FCM batch notification sent. Success count: {}, Failure count: {}",
-                        response.getSuccessCount(), response.getFailureCount());
-
-                if (response.getFailureCount() > 0) {
-                    List<SendResponse> responses = response.getResponses();
-                    List<String> staleTokens = new ArrayList<>();
-
-                    for (int j = 0; j < responses.size(); j++) {
-                        SendResponse sendResponse = responses.get(j);
-                        if (!sendResponse.isSuccessful()) {
-                            FirebaseMessagingException ex = sendResponse.getException();
-                            String token = batch.get(j);
-                            if (ex != null && (ex.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED
-                                    || ex.getMessagingErrorCode() == MessagingErrorCode.INVALID_ARGUMENT)) {
-                                staleTokens.add(token);
-                            }
-                        }
-                    }
-
-                    if (!staleTokens.isEmpty()) {
-                        cleanUpStaleTokens(staleTokens);
-                    }
-                }
             } catch (Exception e) {
-                log.error("Failed to send FCM multicast notification batch: {}", e.getMessage(), e);
+
+                log.warn(
+                        "Failed to delete stale FCM token {}: {}",
+                        preview(token),
+                        e.getMessage()
+                );
             }
         }
     }
 
-    @Transactional
-    public void cleanUpStaleTokens(List<String> staleTokens) {
-        log.info("Cleaning up {} unregistered or invalid FCM tokens from database", staleTokens.size());
-        for (String token : staleTokens) {
-            try {
-                fcmTokenRepository.deleteByFcmToken(token);
-            } catch (Exception e) {
-                log.warn("Failed to delete stale FCM token '{}': {}", token, e.getMessage());
-            }
+
+    // ============================================================
+    // TOKEN PREVIEW
+    // ============================================================
+
+    private String preview(String token) {
+
+        if (token == null) {
+            return "null";
         }
+
+        return token.length() > 12
+                ? token.substring(0, 12) + "..."
+                : token;
+    }
+
+
+    // ============================================================
+    // RESULT RECORD
+    // ============================================================
+
+    private record NotificationSendResult(
+            int totalTargeted,
+            int successCount,
+            int failureCount,
+            List<String> errors
+    ) {
     }
 }

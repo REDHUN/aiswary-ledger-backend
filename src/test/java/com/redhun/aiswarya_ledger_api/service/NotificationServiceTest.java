@@ -95,19 +95,15 @@ public class NotificationServiceTest {
                 .build();
 
         when(fcmTokenRepository.findAll()).thenReturn(List.of(token1, token2));
-
-        BatchResponse mockBatchResponse = mock(BatchResponse.class);
-        when(mockBatchResponse.getSuccessCount()).thenReturn(2);
-        when(mockBatchResponse.getFailureCount()).thenReturn(0);
-        when(firebaseMessaging.sendEachForMulticast(any(MulticastMessage.class))).thenReturn(mockBatchResponse);
+        when(firebaseMessaging.send(any(Message.class))).thenReturn("projects/aiswarya-ledger/messages/12345");
 
         notificationService.sendMeetingCompletedNotification(meeting);
 
-        ArgumentCaptor<MulticastMessage> captor = ArgumentCaptor.forClass(MulticastMessage.class);
-        verify(firebaseMessaging, times(1)).sendEachForMulticast(captor.capture());
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(firebaseMessaging, times(2)).send(captor.capture());
 
-        MulticastMessage capturedMessage = captor.getValue();
-        assertNotNull(capturedMessage);
+        List<Message> capturedMessages = captor.getAllValues();
+        assertEquals(2, capturedMessages.size());
     }
 
     @Test
@@ -122,22 +118,54 @@ public class NotificationServiceTest {
 
         when(fcmTokenRepository.findAll()).thenReturn(List.of(token1));
 
-        BatchResponse mockBatchResponse = mock(BatchResponse.class);
-        SendResponse mockFailedResponse = mock(SendResponse.class);
         FirebaseMessagingException mockException = mock(FirebaseMessagingException.class);
-
         when(mockException.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
-        when(mockFailedResponse.isSuccessful()).thenReturn(false);
-        when(mockFailedResponse.getException()).thenReturn(mockException);
-
-        when(mockBatchResponse.getSuccessCount()).thenReturn(0);
-        when(mockBatchResponse.getFailureCount()).thenReturn(1);
-        when(mockBatchResponse.getResponses()).thenReturn(List.of(mockFailedResponse));
-
-        when(firebaseMessaging.sendEachForMulticast(any(MulticastMessage.class))).thenReturn(mockBatchResponse);
+        when(firebaseMessaging.send(any(Message.class))).thenThrow(mockException);
 
         notificationService.sendMeetingCompletedNotification(meeting);
 
         verify(fcmTokenRepository, times(1)).deleteByFcmToken("stale-token-123");
+    }
+
+    @Test
+    public void testSendTestNotification_Success() throws Exception {
+        ReflectionTestUtils.setField(notificationService, "firebaseMessaging", firebaseMessaging);
+
+        FcmToken token = FcmToken.builder().id(1L).fcmToken("test-device-token").build();
+        when(fcmTokenRepository.findByUserId(1L)).thenReturn(List.of(token));
+        when(firebaseMessaging.send(any(Message.class))).thenReturn("projects/aiswarya-ledger/messages/999");
+
+        com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest req =
+                com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest.builder()
+                        .userId(1L)
+                        .title("Test Title")
+                        .body("Test Body")
+                        .build();
+
+        com.redhun.aiswarya_ledger_api.dto.response.NotificationTestResponse res =
+                notificationService.sendTestNotification(req, 1L);
+
+        assertNotNull(res);
+        assertEquals(1, res.getTotalTargeted());
+        assertEquals(1, res.getSuccessCount());
+        assertEquals("SUCCESS", res.getStatus());
+    }
+
+    @Test
+    public void testSendTestNotification_NoTokensFound() {
+        ReflectionTestUtils.setField(notificationService, "firebaseMessaging", firebaseMessaging);
+        when(fcmTokenRepository.findByUserId(99L)).thenReturn(List.of());
+
+        com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest req =
+                com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest.builder()
+                        .userId(99L)
+                        .build();
+
+        com.redhun.aiswarya_ledger_api.dto.response.NotificationTestResponse res =
+                notificationService.sendTestNotification(req, 99L);
+
+        assertNotNull(res);
+        assertEquals("NO_TOKENS_FOUND", res.getStatus());
+        assertEquals(0, res.getTotalTargeted());
     }
 }

@@ -106,9 +106,12 @@ public class MemberService {
     @Transactional(readOnly = true)
     public Page<MemberDto> getAllMembers(String query, Pageable pageable) {
         if (query != null && !query.trim().isEmpty()) {
-            return memberRepository.searchMembers(query.trim(), pageable).map(this::mapToMemberDto);
+            return memberRepository.searchMembers(query.trim(), pageable)
+                    .map(this::mapToMemberDto);
         }
-        return memberRepository.findAll(pageable).map(this::mapToMemberDto);
+
+        return memberRepository.findByIsActiveTrueOrderByIdAsc(pageable)
+                .map(this::mapToMemberDto);
     }
 
     @Transactional

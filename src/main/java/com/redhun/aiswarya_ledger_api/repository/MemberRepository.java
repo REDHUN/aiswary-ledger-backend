@@ -16,7 +16,16 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     boolean existsByMemberNumber(String memberNumber);
     boolean existsByPhone(String phone);
 
-    @org.springframework.data.jpa.repository.Query("SELECT m FROM Member m WHERE " +
-            "(:query IS NULL OR :query = '' OR LOWER(m.fullName) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(m.memberNumber) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(m.phone) LIKE LOWER(CONCAT('%', :query, '%')))")
-    Page<Member> searchMembers(@org.springframework.data.repository.query.Param("query") String query, Pageable pageable);
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT m FROM Member m WHERE " +
+                    "(:query IS NULL OR :query = '' " +
+                    "OR LOWER(m.fullName) LIKE LOWER(CONCAT('%', :query, '%')) " +
+                    "OR LOWER(m.memberNumber) LIKE LOWER(CONCAT('%', :query, '%')) " +
+                    "OR LOWER(m.phone) LIKE LOWER(CONCAT('%', :query, '%'))) " +
+                    "ORDER BY m.id ASC"
+    )
+    Page<Member> searchMembers(
+            @org.springframework.data.repository.query.Param("query") String query,
+            Pageable pageable
+    );
 }

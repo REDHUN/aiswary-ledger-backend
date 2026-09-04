@@ -7,5 +7,6 @@ public enum NotificationType {
     FINE,
     GENERAL,
     ANNOUNCEMENT,
-    TEST
+    TEST,
+    MEETING_REPORT,
 }

@@ -2,25 +2,33 @@ package com.redhun.aiswarya_ledger_api.service;
 
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.AndroidNotification;
-import com.google.firebase.messaging.Aps;
 import com.google.firebase.messaging.ApnsConfig;
+import com.google.firebase.messaging.Aps;
 import com.google.firebase.messaging.BatchResponse;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.MulticastMessage;
 import com.google.firebase.messaging.Notification;
 import com.google.firebase.messaging.SendResponse;
 import com.redhun.aiswarya_ledger_api.domain.entity.FcmToken;
 import com.redhun.aiswarya_ledger_api.domain.entity.Meeting;
+import com.redhun.aiswarya_ledger_api.domain.entity.User;
+import com.redhun.aiswarya_ledger_api.domain.enums.NotificationType;
+import com.redhun.aiswarya_ledger_api.dto.request.CreateNotificationRequest;
 import com.redhun.aiswarya_ledger_api.dto.request.SendTestNotificationRequest;
+import com.redhun.aiswarya_ledger_api.dto.response.NotificationDto;
 import com.redhun.aiswarya_ledger_api.dto.response.NotificationTestResponse;
+import com.redhun.aiswarya_ledger_api.dto.response.UnreadNotificationCountDto;
+import com.redhun.aiswarya_ledger_api.exception.ResourceNotFoundException;
 import com.redhun.aiswarya_ledger_api.repository.FcmTokenRepository;
+import com.redhun.aiswarya_ledger_api.repository.NotificationRepository;
+import com.redhun.aiswarya_ledger_api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,9 +55,146 @@ public class NotificationService {
     private static final int FCM_MAX_TOKENS_PER_REQUEST = 500;
 
     private final FcmTokenRepository fcmTokenRepository;
+    private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
 
     @Autowired(required = false)
     private FirebaseMessaging firebaseMessaging;
+
+
+    // ============================================================
+    // CREATE, PERSIST & SEND NOTIFICATION (PIPELINE)
+    // ============================================================
+
+    /**
+     * Creates notification records in database and sends FCM push notification.
+     */
+    @Transactional
+    public List<NotificationDto> createAndSendNotification(CreateNotificationRequest request) {
+        log.info("Creating notification: title='{}', type={}, userId={}, broadcast={}",
+                request.getTitle(), request.getNotificationType(), request.getUserId(), request.getBroadcast());
+
+        // 1. Resolve target users
+        List<User> targetUsers = resolveTargetUsers(request);
+        if (targetUsers.isEmpty()) {
+            log.warn("No target users found for notification creation.");
+            return Collections.emptyList();
+        }
+
+        // 2. Persist in database for all target users
+        List<com.redhun.aiswarya_ledger_api.domain.entity.Notification> notifications = new ArrayList<>();
+        for (User user : targetUsers) {
+            com.redhun.aiswarya_ledger_api.domain.entity.Notification entity =
+                    com.redhun.aiswarya_ledger_api.domain.entity.Notification.builder()
+                            .user(user)
+                            .title(request.getTitle())
+                            .body(request.getBody())
+                            .notificationType(request.getNotificationType())
+                            .referenceId(request.getReferenceId())
+                            .data(request.getData() != null ? new HashMap<>(request.getData()) : new HashMap<>())
+                            .isRead(false)
+                            .build();
+            notifications.add(entity);
+        }
+
+        List<com.redhun.aiswarya_ledger_api.domain.entity.Notification> savedEntities =
+                notificationRepository.saveAll(notifications);
+        log.info("Persisted {} notification record(s) in database", savedEntities.size());
+
+        // 3. Collect target FCM tokens
+        List<String> targetTokens = new ArrayList<>();
+        for (User user : targetUsers) {
+            List<FcmToken> userTokens = fcmTokenRepository.findByUserId(user.getId());
+            targetTokens.addAll(
+                    userTokens.stream()
+                            .map(FcmToken::getFcmToken)
+                            .filter(Objects::nonNull)
+                            .toList()
+            );
+        }
+
+        List<String> cleanedTokens = cleanTokens(targetTokens);
+
+        // 4. Prepare FCM Data payload
+        Map<String, String> fcmData = new HashMap<>();
+        if (request.getData() != null) {
+            fcmData.putAll(request.getData());
+        }
+        fcmData.put("notificationType", request.getNotificationType().name());
+        fcmData.put("type", request.getNotificationType().name());
+        if (request.getReferenceId() != null) {
+            fcmData.put("referenceId", String.valueOf(request.getReferenceId()));
+        }
+        if (savedEntities.size() == 1) {
+            fcmData.put("notificationId", String.valueOf(savedEntities.getFirst().getId()));
+        }
+
+        // 5. Send FCM Multicast
+        if (!cleanedTokens.isEmpty()) {
+            sendMulticastNotification(
+                    cleanedTokens,
+                    request.getTitle(),
+                    request.getBody(),
+                    fcmData
+            );
+        } else {
+            log.info("No FCM tokens registered for target users. FCM push skipped.");
+        }
+
+        return savedEntities.stream()
+                .map(NotificationDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    private List<User> resolveTargetUsers(CreateNotificationRequest request) {
+        if (request.getUserId() != null) {
+            User user = userRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getUserId()));
+            return List.of(user);
+        } else if (Boolean.TRUE.equals(request.getBroadcast())) {
+            return userRepository.findByIsActiveTrue();
+        } else {
+            return userRepository.findByIsActiveTrue();
+        }
+    }
+
+
+    // ============================================================
+    // USER NOTIFICATION INBOX QUERIES
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public Page<NotificationDto> getUserNotifications(Long userId, Pageable pageable) {
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .map(NotificationDto::fromEntity);
+    }
+
+    @Transactional(readOnly = true)
+    public UnreadNotificationCountDto getUnreadCount(Long userId) {
+        long count = notificationRepository.countByUserIdAndIsReadFalse(userId);
+        return new UnreadNotificationCountDto(count);
+    }
+
+    @Transactional
+    public NotificationDto markAsRead(Long notificationId, Long userId) {
+        com.redhun.aiswarya_ledger_api.domain.entity.Notification notification =
+                notificationRepository.findByIdAndUserId(notificationId, userId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Notification", "id", notificationId));
+
+        if (!Boolean.TRUE.equals(notification.getIsRead())) {
+            notification.setIsRead(true);
+            notification = notificationRepository.save(notification);
+        }
+
+        return NotificationDto.fromEntity(notification);
+    }
+
+    @Transactional
+    public int markAllAsRead(Long userId) {
+        int updatedRows = notificationRepository.markAllAsReadByUserId(userId, ZonedDateTime.now());
+        log.info("Marked all notifications as read for user {}: {} rows updated", userId, updatedRows);
+        return updatedRows;
+    }
 
 
     // ============================================================
@@ -58,32 +203,14 @@ public class NotificationService {
 
     /**
      * Sends meeting completed notification to all registered
-     * user devices.
+     * user devices and persists the notification in the database.
      */
     @Async
+    @Transactional
     public void sendMeetingCompletedNotification(Meeting meeting) {
 
         if (meeting == null) {
             log.warn("Cannot send meeting completed notification: meeting is null");
-            return;
-        }
-
-        if (firebaseMessaging == null) {
-            log.warn(
-                    "FirebaseMessaging is not initialized. " +
-                            "Meeting completed notification was not sent."
-            );
-            return;
-        }
-
-        List<String> tokens = getAllTokens();
-
-        if (tokens.isEmpty()) {
-            log.info(
-                    "No FCM tokens found in database. " +
-                            "Skipping notification for Meeting #{}",
-                    meeting.getMeetingNumber()
-            );
             return;
         }
 
@@ -100,9 +227,10 @@ public class NotificationService {
         );
 
         Map<String, String> data = new HashMap<>();
-
-        data.put("type", "MEETING_COMPLETED");
+        data.put("type", NotificationType.MEETING.name());
+        data.put("notificationType", NotificationType.MEETING.name());
         data.put("meetingId", String.valueOf(meeting.getId()));
+        data.put("referenceId", String.valueOf(meeting.getId()));
         data.put(
                 "meetingNumber",
                 String.valueOf(meeting.getMeetingNumber())
@@ -122,8 +250,45 @@ public class NotificationService {
             );
         }
 
+        // Save DB notifications for all active users
+        List<User> activeUsers = userRepository.findByIsActiveTrue();
+        if (!activeUsers.isEmpty()) {
+            List<com.redhun.aiswarya_ledger_api.domain.entity.Notification> dbNotifications = activeUsers.stream()
+                    .map(u -> com.redhun.aiswarya_ledger_api.domain.entity.Notification.builder()
+                            .user(u)
+                            .title(title)
+                            .body(body)
+                            .notificationType(NotificationType.MEETING)
+                            .referenceId(meeting.getId())
+                            .data(new HashMap<>(data))
+                            .isRead(false)
+                            .build())
+                    .toList();
+            notificationRepository.saveAll(dbNotifications);
+            log.info("Persisted meeting completed notifications for {} active user(s)", activeUsers.size());
+        }
+
+        if (firebaseMessaging == null) {
+            log.warn(
+                    "FirebaseMessaging is not initialized. " +
+                            "Meeting completed push notification was not sent."
+            );
+            return;
+        }
+
+        List<String> tokens = getAllTokens();
+
+        if (tokens.isEmpty()) {
+            log.info(
+                    "No FCM tokens found in database. " +
+                            "Skipping push notification for Meeting #{}",
+                    meeting.getMeetingNumber()
+            );
+            return;
+        }
+
         log.info(
-                "Sending meeting completed notification for Meeting #{} " +
+                "Sending meeting completed push notification for Meeting #{} " +
                         "to {} device(s)",
                 meeting.getMeetingNumber(),
                 tokens.size()
@@ -219,7 +384,7 @@ public class NotificationService {
                         .format(
                                 DateTimeFormatter.ofPattern(
                                         "hh:mm a, dd MMM yyyy"
-                                )
+                                    )
                         );
 
         String body =
